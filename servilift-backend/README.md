@@ -1,82 +1,67 @@
-# ServiLift – Backend (FastAPI)
+# ServiLift v2 – Backend (FastAPI)
 
-API para la gestión de certificación de ascensores NTC 5926-1, desde que el asesor registra el cliente
-hasta que el cliente descarga el certificado. Misma base tecnológica de LiftSafe (FastAPI + SQLAlchemy +
-MySQL/MariaDB + JWT + reportlab), reescrita para el flujo de ServiLift.
+API de la certificación de ascensores NTC 5926: clientes, cotizaciones, programación, inspección
+(1ª y 2ª visita), informes por visita, certificados con QR y portal del cliente.
 
 ## Puesta en marcha
 
 ```bash
-# 1. Base de datos (una vez)
-mysql -u root -p --default-character-set=utf8mb4 < ../database/01_schema.sql
-mysql -u root -p --default-character-set=utf8mb4 < ../database/02_seed.sql
-
-# 2. Entorno
 python -m venv venv
 venv\Scripts\activate
 pip install -r requirements.txt
-copy .env.example .env        # y ajuste SECRET_KEY / DB_PASSWORD
-
-# 3. Usuarios iniciales: ya vienen en ../database/03_datos_iniciales.sql
-#    (para otro administrador: python -m scripts.crear_admin)
-python -m scripts.crear_admin "Nombre Apellido" admin@empresa.com
-
-# 4. Servidor (0.0.0.0 para que los celulares de la red lo alcancen)
+copy .env.example .env      # generar SECRET_KEY: python -c "import secrets; print(secrets.token_hex(32))"
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
+La base se crea con los scripts de `../database`. Documentación interactiva: http://localhost:8000/docs
 
-Documentación interactiva: http://localhost:8000/docs
+## Organización
 
-## Flujo y endpoints principales
+```
+app/
+├── main.py         app, CORS, rutas y entrega de fotos/firmas con enlace firmado
+├── config.py       .env (base, zona horaria, SECRET_KEY obligatoria, CORS)
+├── tiempo.py       hora de Colombia: ahora(), hoy() y conversión de fechas del celular
+├── database.py     conexión (fija time_zone en cada conexión)
+├── models.py       modelos ORM
+├── security.py     contraseñas, JWT, roles, enlaces de descarga y de archivos
+├── routes/         auth, usuarios, clientes (búsqueda), cotizaciones, programacion, inspecciones,
+│                   informes (uno por visita), certificados, seguimiento, catalogos (normas), dashboard
+└── services/       flujo (estados), checklist (por norma), archivos (fotos, firmas por trazos), pdf
+alembic/            migraciones (base en la revisión 0001_v2)
+tests/test_flujo.py prueba de punta a punta
+```
+
+## Endpoints principales
 
 | Paso | Rol | Endpoint |
 |---|---|---|
-| Registrar cliente, edificios y equipos | ASESOR | `POST /clientes`, `POST /clientes/{id}/edificios`, `POST /edificios/{id}/equipos` (o `/equipos/generar`) |
-| Crear acceso al portal del cliente | ASESOR | `POST /clientes/{id}/usuarios` |
-| Cotizar (edificio + equipos uno a uno con valor) | ASESOR | `POST /cotizaciones` → número `COT-AAAA-NNNN` |
-| Enviar al cliente | ASESOR | `POST /cotizaciones/{id}/enviar-cliente` |
-| Aprobar / rechazar | CLIENTE | `POST /cotizaciones/{id}/responder` |
-| Aceptar y enviar a programación | ASESOR | `POST /cotizaciones/{id}/enviar-programacion` |
-| Asignar fecha, hora e inspector (notifica) | PROGRAMACION | `GET /programacion/pendientes`, `POST /programacion` |
-| Agenda y abrir informe precargado | INSPECTOR | `GET /inspecciones/agenda`, `POST /inspecciones/iniciar` |
-| Variantes (tracción/hidráulico, enhebrado…) | INSPECTOR | `PUT /inspecciones/{id}/variantes` (precarga los "No aplica") |
-| Checklist NTC 5926-1 (169 ítems) | INSPECTOR | `GET /inspecciones/{id}/checklist`, `PUT /inspecciones/{id}/resultados` |
-| Álbum de fotos | INSPECTOR | `POST /inspecciones/{id}/fotos` (varias a la vez) |
-| Firmas: inspector, técnico, representante | INSPECTOR | `POST /inspecciones/{id}/firmas` |
-| Finalizar (valida pendientes) | INSPECTOR | `GET /inspecciones/{id}/validar`, `POST /inspecciones/{id}/finalizar` |
-| Revisar, devolver o aprobar y firmar (genera PDF) | DIRECTOR_TECNICO | `POST /informes/{id}/devolver`, `POST /informes/{id}/aprobar` |
-| Segunda visita si el informe es no conforme | PROGRAMACION / INSPECTOR | `POST /programacion` con `tipo_visita=SEGUNDA`, `PUT /inspecciones/{id}/segunda-visita` |
-| Elaborar y enviar certificado (QR), solo si es conforme | CERTIFICADOS | `GET /certificados/pendientes`, `POST /certificados`, `POST /certificados/{id}/enviar` |
-| Estado por equipo, informes y certificados | CLIENTE | `GET /seguimiento`, `GET /informes/{id}/pdf`, `GET /certificados/{id}/pdf` |
-| Buscar todo por número de cotización | Todos | `GET /seguimiento?numero_cotizacion=COT-2026-0001` |
-| Verificación pública del QR | Público | `GET /verificar/{codigo}` |
+| Buscar clientes / edificios / equipos | Oficina | `GET /clientes?buscar=`, `GET /edificios?buscar=`, `GET /equipos?id_edificio=` |
+| Normas | Admin | `GET/POST /catalogos/normas`, `PUT /catalogos/normas/{id}` (marcar vigente) |
+| Cotizar (norma por equipo) | Asesor | `POST /cotizaciones` |
+| Programar 1ª o 2ª visita | Programación | `GET /programacion/pendientes`, `POST /programacion` |
+| Agenda e informe precargado | Inspector | `GET /inspecciones/agenda`, `POST /inspecciones/iniciar` |
+| Checklist (idempotente, el más reciente gana) | Inspector | `PUT /inspecciones/{id}/resultados`, `PUT /inspecciones/{id}/segunda-visita` |
+| Fotos y firmas (con `uuid_offline`) | Inspector | `POST /inspecciones/{id}/fotos`, `POST /inspecciones/{id}/firmas` (imagen o `dibujo`) |
+| Finalizar visita | Inspector | `GET /inspecciones/{id}/validar`, `POST /inspecciones/{id}/finalizar` |
+| Revisar informe de la visita | Director | `POST /informes/{id}/devolver`, `POST /informes/{id}/aprobar` |
+| Solicitar 2ª visita | Cliente / Asesor | `POST /seguimiento/equipo/{id}/solicitar-segunda-visita` |
+| Certificado | Certificados | `GET /certificados/pendientes`, `POST /certificados`, `POST /certificados/{id}/enviar` |
+| Seguimiento | Todos | `GET /seguimiento?numero_cotizacion=&buscar=` |
+| Verificación del QR | Público | `GET /verificar/{codigo}` |
 
-Otros: `/auth/login`, `/auth/me`, `/usuarios`, `/catalogos/variantes`, `/catalogos/checklist`,
-`/catalogos/parametros`, `/instrumentos`, `/notificaciones`, `/dashboard/resumen`,
-`/seguimiento/equipo/{id}/historial`.
-
-## Estados por equipo
-
-`PENDIENTE_APROBACION → APROBADO_CLIENTE → POR_PROGRAMAR → PROGRAMADO → EN_INSPECCION → EN_REVISION →
-INFORME_APROBADO → CERTIFICADO_LISTO` (más `RECHAZADO` y `ANULADO`). Si el informe es no conforme:
-`EN_REVISION → NO_CONFORME → PROGRAMADO (2ª visita) → EN_INSPECCION → EN_REVISION → INFORME_APROBADO`;
-el certificado solo se emite con concepto CONFORME. Si el director devuelve el informe,
-el equipo vuelve a `EN_INSPECCION`. Cada cambio queda en `historial_estado`.
-
-## Archivos
-
-Fotos (se normalizan a JPG de máx. 1920 px y se crea miniatura), firmas y PDF se guardan en `STORAGE_DIR`.
-Los PDF solo se descargan por los endpoints con permisos; el cliente solo ve informes aprobados y
-certificados enviados.
-
-## Prueba de punta a punta
-
-Contra una base `servilift_db` recién creada:
+## Pruebas
 
 ```bash
 python -m tests.test_flujo
 ```
+Recorre: normas, búsqueda, cotización, programación, inspección de 169 ítems, enlaces firmados,
+idempotencia, "el cambio más reciente gana", devolución y aprobación, 2ª visita conforme con
+certificado, y 2ª visita no conforme con cotización nueva enlazada. Deja PDF de ejemplo en `tests/salida/`.
 
-Recorre todo el flujo (cotización de 2 de 3 equipos, programación, inspección con 169 ítems, fotos,
-firmas, devolución y aprobación del director, certificado y portal del cliente) y deja los PDF de
-ejemplo en `tests/salida/`.
+## Migraciones
+
+```bash
+alembic current
+alembic revision -m "descripción"
+alembic upgrade head
+```
