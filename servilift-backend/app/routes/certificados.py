@@ -2,7 +2,7 @@
 # Rol Certificados: elabora el certificado a partir del informe aprobado y lo envía al cliente.
 
 import secrets
-from datetime import date, datetime
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
@@ -20,6 +20,7 @@ from app.services import archivos, pdf
 from app.services.flujo import (
     cambiar_estado, notificar, parametro, registrar_evento, siguiente_numero, usuarios_del_cliente,
 )
+from app.tiempo import ahora, hoy
 
 router = APIRouter(tags=["Certificados"])
 
@@ -46,7 +47,9 @@ def certificado_dict(c: Certificado) -> dict:
                  "fecha_emision", "fecha_vencimiento", "codigo_verificacion", "fecha_envio_cliente",
                  "motivo_anulacion"])
     d["numero_informe"] = c.informe.numero_informe
+    d["numero_visita"] = c.informe.numero_visita
     d["concepto"] = c.informe.concepto
+    d["norma"] = c.informe.inspeccion.norma.etiqueta
     d["servicio"] = cot_equipo_dict(c.cotizacion_equipo)
     d["numero_cotizacion"] = c.cotizacion_equipo.cotizacion.numero_cotizacion
     d["edificio"] = c.cotizacion_equipo.cotizacion.edificio.nombre
@@ -95,14 +98,14 @@ def emitir(datos: EmitirIn, db: Session = Depends(get_db), usuario: Usuario = De
     if not inf or inf.estado != "APROBADO":
         raise HTTPException(404, "Informe aprobado no encontrado")
     if inf.concepto != "CONFORME":
-        raise HTTPException(409, "El informe es NO CONFORME: el certificado se emite cuando la segunda visita "
-                                 "confirme que todos los hallazgos fueron corregidos")
+        raise HTTPException(409, "El informe es NO CONFORME: el certificado solo se emite sobre un informe conforme "
+                                 "(primera visita sin hallazgos o segunda visita con todos los hallazgos corregidos)")
     if inf.certificado and inf.certificado.estado != "ANULADO":
         raise HTTPException(409, f"El informe ya tiene el certificado {inf.certificado.numero_certificado}")
     if inf.certificado:  # se reemplaza uno anulado
         db.delete(inf.certificado)
         db.flush()
-    emision = datos.fecha_emision or date.today()
+    emision = datos.fecha_emision or hoy()
     meses = int(parametro(db, "CERTIFICADO_VIGENCIA_MESES", "12"))
     c = Certificado(
         numero_certificado=siguiente_numero(db, "CER"), id_informe=inf.id_informe,
@@ -127,7 +130,7 @@ def enviar(id_certificado: int, db: Session = Depends(get_db), usuario: Usuario 
     c = _obtener(db, id_certificado, usuario)
     if c.estado != "EMITIDO":
         raise HTTPException(409, f"El certificado está {c.estado}")
-    c.estado, c.fecha_envio_cliente = "ENVIADO_CLIENTE", datetime.now()
+    c.estado, c.fecha_envio_cliente = "ENVIADO_CLIENTE", ahora()
     ce = c.cotizacion_equipo
     cambiar_estado(db, ce, "CERTIFICADO_LISTO", usuario, f"Certificado {c.numero_certificado}")
     notificar(db, usuarios_del_cliente(db, ce.cotizacion.id_cliente), f"Certificado listo {c.numero_certificado}",
@@ -186,10 +189,11 @@ def verificar(codigo: str, db: Session = Depends(get_db)):
     ce = c.cotizacion_equipo
     return {
         "numero_certificado": c.numero_certificado,
-        "estado": "ANULADO" if c.estado == "ANULADO" else ("VIGENTE" if c.fecha_vencimiento >= date.today() else "VENCIDO"),
+        "estado": "ANULADO" if c.estado == "ANULADO" else ("VIGENTE" if c.fecha_vencimiento >= hoy() else "VENCIDO"),
         "fecha_emision": c.fecha_emision.isoformat(),
         "fecha_vencimiento": c.fecha_vencimiento.isoformat(),
         "concepto": c.informe.concepto,
+        "norma": c.informe.inspeccion.norma.etiqueta,
         "edificio": ce.cotizacion.edificio.nombre,
         "ciudad": ce.cotizacion.edificio.ciudad,
         "equipo": ce.equipo.identificacion,

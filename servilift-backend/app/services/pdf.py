@@ -19,9 +19,9 @@ from reportlab.platypus import (
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models import Certificado, ChecklistItem, Informe, Usuario
+from app.models import Certificado, Informe
 from app.services.archivos import ruta_absoluta
-from app.services.checklist import CALIF_CORTA
+from app.services.checklist import CALIF_CORTA, items_de_la_norma
 from app.services.flujo import parametro
 
 AZUL = colors.HexColor("#1F3A5F")
@@ -137,42 +137,44 @@ def _texto_plazo(dias):
         else f"TIENE {dias} DÍAS PARA CORREGIR ESTOS HALLAZGOS."
 
 
-def generar_informe(db: Session, informe: Informe, borrador: bool = False, visita: int | None = None) -> str:
+def generar_informe(db: Session, informe: Informe, borrador: bool = False) -> str:
     """Informe con el formato de la plantilla: datos, resumen con tiempos de solución, hallazgos (solo No cumple)
     con su foto en la fila y columnas de 2ª visita, evidencia de equipos de medición, firmas de ambas visitas e
-    ítems que no aplican. visita=1 genera el informe de primera visita (columnas de 2ª visita vacías);
-    visita=2 el de segunda visita (corregido / no corregido y foto de la corrección)."""
-    visita = visita or informe.visita_actual
+    ítems que no aplican. Cada visita tiene su propio informe: el de 1ª visita deja vacías las columnas de 2ª
+    visita; el de 2ª visita marca corregido / no corregido y la foto de la corrección."""
+    visita = informe.numero_visita
     insp = informe.inspeccion
+    norma = insp.norma
+    ce = insp.cotizacion_equipo
+    inf1 = insp.informe(1)
     snap = json.loads(insp.datos_equipo_json or "{}")
     cli, edi, eq = snap.get("cliente", {}), snap.get("edificio", {}), snap.get("equipo", {})
     variantes = {v.tipo.codigo: v.opcion.nombre for v in insp.variantes}
     res = {r.id_item: r for r in insp.resultados}
-    items = db.query(ChecklistItem).filter(ChecklistItem.activo.is_(True)).order_by(ChecklistItem.numero).all()
+    items = items_de_la_norma(db, insp.id_norma)
     firmas = {(f.numero_visita, f.tipo_firmante): f for f in insp.firmas}
-    inspector2 = db.get(Usuario, insp.id_inspector_visita2) if insp.id_inspector_visita2 else None
+    inspector2 = insp.inspector_visita2
     director = informe.director.nombre_completo if informe.director else ""
-    corte_v2 = insp.fecha_visita2
+    director1 = inf1.director.nombre_completo if inf1 and inf1.director else director
 
     def es_foto_v2(f):
-        return bool(corte_v2 and f.fecha_captura and f.fecha_captura >= corte_v2)
+        return f.numero_visita == 2
 
     fotos_por_res = {}
     for f in insp.fotos:
         if f.id_resultado and f.incluir_en_informe and (visita == 2 or not es_foto_v2(f)):
             fotos_por_res.setdefault(f.id_resultado, []).append(f)
 
-    sufijo = "1V" if visita == 1 else "2V"
-    rel = _destino("informes/borradores" if borrador else "informes", f"{informe.numero_informe}-{sufijo}")
+    rel = _destino("informes/borradores" if borrador else "informes", informe.numero_informe)
     doc = SimpleDocTemplate(ruta_absoluta(rel), pagesize=letter, leftMargin=1.3 * cm, rightMargin=1.3 * cm,
-                            topMargin=1.2 * cm, bottomMargin=1.6 * cm, title=f"{informe.numero_informe} {sufijo}")
-    titulo = parametro(db, "INFORME_TITULO", "INFORME DE INSPECCIÓN DE ASCENSORES NTC 5926-1:2012")
+                            topMargin=1.2 * cm, bottomMargin=1.6 * cm, title=informe.numero_informe)
+    titulo = norma.titulo_informe
     h = []
 
     visita_txt = "PRIMERA VISITA" if visita == 1 else "SEGUNDA VISITA / CIERRE DE HALLAZGOS"
-    emision = informe.fecha_aprobacion_visita1 if visita == 1 and informe.fecha_aprobacion_visita1 else informe.fecha_aprobacion
+    emision = informe.fecha_aprobacion
     cab = Table([[_p(parametro(db, "EMPRESA_NOMBRE", "ServiLift"), PB), _p(f"{titulo}<br/><font size=9>{visita_txt}</font>", PT),
-                  _p(f"Informe: <b>{informe.numero_informe}-{sufijo}</b><br/>Emisión: {_fecha(emision)}")]],
+                  _p(f"Informe: <b>{informe.numero_informe}</b><br/>Norma: {norma.etiqueta}<br/>Emisión: {_fecha(emision)}")]],
                 colWidths=[4 * cm, 10.5 * cm, 4.5 * cm])
     cab.setStyle(TableStyle([("BOX", (0, 0), (-1, -1), 0.8, AZUL), ("INNERGRID", (0, 0), (-1, -1), 0.4, colors.grey),
                              ("VALIGN", (0, 0), (-1, -1), "MIDDLE")]))
@@ -196,7 +198,7 @@ def generar_informe(db: Session, informe: Informe, borrador: bool = False, visit
         ["Inspector 1ª visita", insp.inspector.nombre_completo, "Atestador", director],
         ["Fecha 1ª visita", _fecha(insp.fecha_inicio), "Fecha de emisión", _fecha(emision)],
         ["Inspector 2ª visita", inspector2.nombre_completo if (inspector2 and visita == 2) else "",
-         "Fecha 2ª visita", _fecha(insp.fecha_visita2) if (insp.fecha_visita2 and visita == 2) else ""],
+         "Fecha 2ª visita", _fecha(insp.fecha_inicio_visita2) if (insp.fecha_inicio_visita2 and visita == 2) else ""],
     ], [4 * cm, 5.5 * cm, 4 * cm, 5.5 * cm]), Spacer(1, 4)]
 
     def var(c):
@@ -212,7 +214,7 @@ def generar_informe(db: Session, informe: Informe, borrador: bool = False, visit
     ], [3.2 * cm, 3.3 * cm, 3.2 * cm, 3.3 * cm, 3 * cm, 3 * cm]), Spacer(1, 4)]
 
     # Resumen con tiempos de solución por calificación
-    plazos = {c: parametro(db, f"PLAZO_DIAS_{c}", d) for c, d in (("LEVE", "180"), ("GRAVE", "30"), ("MUY_GRAVE", "0"))}
+    plazos = {c: norma.plazo_por_calificacion(c) for c in ("LEVE", "GRAVE", "MUY_GRAVE")}
     nc = [(it, res[it.id_item]) for it in items if it.id_item in res and res[it.id_item].resultado == "NO_CUMPLE"]
     na = [(it, res[it.id_item]) for it in items if it.id_item in res and res[it.id_item].resultado == "NO_APLICA"]
     cuenta = {c: sum(1 for it, _ in nc if it.calificacion == c) for c in ("LEVE", "GRAVE", "MUY_GRAVE")}
@@ -221,13 +223,14 @@ def generar_informe(db: Session, informe: Informe, borrador: bool = False, visit
         filas_r.append([_p(f"Cantidad de ítems NO cumplidos {nombre}"), _p(cuenta[c], PC),
                         _p(_texto_plazo(plazos[c]) if cuenta[c] else "")])
     filas_r.append([_p("CANTIDAD TOTAL NO APLICA: " + str(len(na)), PB), _p(f"TOTAL {len(nc)}", PC), _leyenda()])
-    concepto = informe.concepto if visita == informe.visita_actual else (informe.concepto_visita1 or informe.concepto)
-    extra = f"Concepto: <b>{(concepto or '').replace('_', ' ')}</b>"
-    if visita == 1 and (informe.concepto_visita1 or informe.concepto) == "NO_CONFORME" and informe.plazo_dias is not None \
-            and informe.visita_actual == 1:
-        extra += f" · Plazo para corregir y solicitar la 2ª visita: hasta <b>{_fecha(informe.fecha_limite_correccion)}</b>"
+    extra = f"Concepto: <b>{(informe.concepto or '').replace('_', ' ')}</b>"
+    if visita == 1 and informe.concepto == "NO_CONFORME" and ce.fecha_limite_correccion:
+        extra += f" · Plazo para corregir y solicitar la 2ª visita: hasta <b>{_fecha(ce.fecha_limite_correccion)}</b>"
     if visita == 2:
-        extra += f" · 2ª visita: {informe.total_corregidos} corregidos, {informe.total_no_corregidos} no corregidos"
+        extra += (f" · Informe de 1ª visita {inf1.numero_informe if inf1 else ''} · 2ª visita: "
+                  f"{informe.total_corregidos} corregidos, {informe.total_no_corregidos} no corregidos")
+        if informe.concepto == "NO_CONFORME":
+            extra += " · <b>Hallazgos sin corregir: el equipo requiere una nueva inspección (cotización nueva)</b>"
     filas_r.append([_p(extra), "", ""])
     resumen_t = Table(filas_r, colWidths=[7 * cm, 2.5 * cm, 9.5 * cm])
     resumen_t.setStyle(TableStyle([("GRID", (0, 0), (-1, -1), 0.4, colors.grey), ("BACKGROUND", (0, 0), (-1, 0), GRIS),
@@ -316,8 +319,8 @@ def generar_informe(db: Session, informe: Informe, borrador: bool = False, visit
                            ("INSPECTOR", "FIRMA DEL INSPECTOR")):
         filas_f.append([bloque_firma(etiqueta, firmas.get((1, tipo))),
                         bloque_firma(etiqueta, firmas.get((2, tipo)) if visita == 2 else None)])
-    firma_v1 = informe.ruta_firma_director_v1 or informe.ruta_firma_director
-    filas_f.append([bloque_firma("RESPONSABLE DE REVISIÓN / ATESTACIÓN", ruta=firma_v1, nombre=director),
+    firma_v1 = (inf1.ruta_firma_director if inf1 else None) or (informe.ruta_firma_director if visita == 1 else None)
+    filas_f.append([bloque_firma("RESPONSABLE DE REVISIÓN / ATESTACIÓN", ruta=firma_v1 or "", nombre=director1),
                     bloque_firma("RESPONSABLE DE REVISIÓN / ATESTACIÓN",
                                  ruta=informe.ruta_firma_director if visita == 2 else "", nombre=director if visita == 2 else "")])
     tf = Table(filas_f, colWidths=[9.5 * cm, 9.5 * cm])
@@ -361,7 +364,7 @@ def generar_informe(db: Session, informe: Informe, borrador: bool = False, visit
                                  ("BOTTOMPADDING", (0, 0), (-1, -1), 8)]))
         h += [PageBreak(), _seccion(f"ANEXO: REGISTRO FOTOGRÁFICO ({len(resto)} fotos)"), Spacer(1, 4), tfo]
 
-    pie = _pie(db, f"{informe.numero_informe}-{sufijo}", borrador)
+    pie = _pie(db, informe.numero_informe, borrador)
     doc.build(h, onFirstPage=pie, onLaterPages=pie)
     return rel
 
@@ -390,17 +393,18 @@ def generar_certificado(db: Session, cert: Certificado) -> str:
     dib.add(qr)
 
     h = [_p(empresa, ParagraphStyle("e", parent=PB, fontSize=14, alignment=TA_CENTER, textColor=AZUL)), Spacer(1, 16),
-         _p("CERTIFICADO DE INSPECCIÓN", grande), _p("NTC 5926-1:2012", centro), Spacer(1, 10),
+         _p("CERTIFICADO DE INSPECCIÓN", grande), _p(insp.norma.etiqueta, centro), Spacer(1, 10),
          _p(f"No. <b>{cert.numero_certificado}</b>", centro), Spacer(1, 18),
          _p(f"Se certifica que el equipo descrito a continuación fue inspeccionado conforme a la norma "
-            f"NTC 5926-1:2012 y obtuvo concepto <b>{(informe.concepto or '').replace('_', ' ')}</b>, "
+            f"{insp.norma.etiqueta} y obtuvo concepto <b>{(informe.concepto or '').replace('_', ' ')}</b>, "
             f"según el informe <b>{informe.numero_informe}</b>.", centro), Spacer(1, 16),
          _grilla([
              ["Cliente", cli.get("razon_social"), "NIT / C.C.", f"{cli.get('tipo_documento', '')} {cli.get('numero_documento', '')}"],
              ["Edificio", edi.get("nombre"), "Dirección", f"{edi.get('direccion', '')}, {edi.get('ciudad', '')}"],
              ["Equipo", eq.get("identificacion"), "Serial", eq.get("numero_serie") or "NI"],
              ["Accionamiento", variantes.get("ACCIONAMIENTO", "NI"), "Capacidad", f"{insp.capacidad_kg or 'NI'} kg / {insp.capacidad_personas or 'NI'} personas"],
-             ["Cotización", snap.get("numero_cotizacion"), "Fecha de inspección", _fecha(insp.fecha_inicio)],
+             ["Cotización", snap.get("numero_cotizacion"), "Fecha de inspección",
+              _fecha(insp.fecha_inicio_visita2 if informe.numero_visita == 2 else insp.fecha_inicio)],
              ["Fecha de emisión", _fecha(cert.fecha_emision), "Válido hasta", _fecha(cert.fecha_vencimiento)],
          ], [3 * cm, 5.5 * cm, 3 * cm, 5.5 * cm]),
          Spacer(1, 24)]
