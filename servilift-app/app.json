@@ -1,0 +1,50 @@
+{
+  "expo": {
+    "name": "ServiLift",
+    "slug": "servilift",
+    "scheme": "servilift",
+    "version": "2.0.0",
+    "orientation": "default",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "co.servilift.app"
+    },
+    "android": {
+      "package": "co.servilift.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#0B1929",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-web-browser",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "ServiLift usa sus fotos para el registro fotográfico de la inspección.",
+          "cameraPermission": "ServiLift usa la cámara para tomar las fotos de la inspección."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "ServiLift registra la ubicación de la inspección."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": false
+    }
+  }
+}
