@@ -1,17 +1,30 @@
 -- =====================================================================
--- ServiLift - Esquema de base de datos
--- Gestión de certificación de ascensores (NTC 5926-1)
+-- ServiLift v2 - Esquema de base de datos
+-- Gestión de certificación de ascensores (NTC 5926)
 -- Motor: MariaDB 10.4+ / MySQL 8+  (InnoDB, utf8mb4)
 --
 -- Flujo principal:
 --   Asesor crea cliente -> edificios -> equipos
---   Asesor crea cotización (un edificio, equipos elegidos uno a uno, valor por equipo)
+--   Asesor crea cotización (un edificio, equipos elegidos uno a uno, valor y norma por equipo)
 --   Cliente aprueba -> Asesor acepta y envía a Programación
 --   Programación asigna fecha, hora e inspector (notificación)
 --   Inspector (móvil) selecciona variantes, llena checklist, fotos, firmas, finaliza
---   Director técnico revisa, atesta, firma, genera PDF del informe
---     -> el informe queda visible al cliente y pasa a Certificados
---   Certificados emite el certificado y lo envía al cliente
+--   Director técnico revisa, atesta, firma y aprueba -> INFORME DE PRIMERA VISITA
+--     · Conforme      -> Certificados emite el certificado
+--     · No conforme   -> plazo de corrección -> SEGUNDA VISITA (cierre de hallazgos)
+--                         -> INFORME DE SEGUNDA VISITA
+--                            · todos corregidos  -> Certificados
+--                            · alguno sin corregir -> CERRADO_NO_CONFORME: el equipo
+--                              necesita una cotización nueva (otra primera visita)
+--
+-- Solo existen dos visitas por servicio. Cada equipo cotizado tiene su informe de
+-- 1ª visita y, si aplica, su informe de 2ª visita (tabla informe, una fila por visita).
+--
+-- Normas: tabla `norma` (NTC 5926-1:2012 hoy; 5926-1 de otras ediciones y las partes
+-- 2 y 3 se agregan como filas nuevas con su propio checklist).
+--
+-- Fechas: todas DATETIME en hora de Colombia (UTC-5, sin horario de verano).
+-- El backend fija time_zone = '-05:00' en cada conexión.
 --
 -- La llave de seguimiento es cotizacion.numero_cotizacion (COT-AAAA-NNNN);
 -- cada equipo cotizado tiene cotizacion_equipo.codigo_servicio (COT-AAAA-NNNN-NN).
@@ -20,8 +33,8 @@
 CREATE DATABASE IF NOT EXISTS servilift_db
   CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE servilift_db;
-
-SET FOREIGN_KEY_CHECKS = 0;
+SET NAMES utf8mb4;
+SET time_zone = '-05:00';
 
 -- ---------------------------------------------------------------------
 -- 1. Seguridad: roles y usuarios
@@ -31,9 +44,10 @@ CREATE TABLE rol (
   codigo          VARCHAR(30)  NOT NULL UNIQUE COMMENT 'ADMIN, ASESOR, CLIENTE, PROGRAMACION, INSPECTOR, DIRECTOR_TECNICO, CERTIFICADOS',
   nombre          VARCHAR(60)  NOT NULL,
   descripcion     VARCHAR(255) NULL,
-  fecha_creacion  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  fecha_creacion  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
+-- La llave hacia cliente se agrega al final (cliente depende de usuario por el asesor)
 CREATE TABLE usuario (
   id_usuario        INT AUTO_INCREMENT PRIMARY KEY,
   id_rol            INT NOT NULL,
@@ -49,12 +63,12 @@ CREATE TABLE usuario (
   ruta_firma        VARCHAR(500) NULL COMMENT 'Firma registrada (director técnico, inspector)',
   estado            ENUM('ACTIVO','INACTIVO','BLOQUEADO') NOT NULL DEFAULT 'ACTIVO',
   ultima_sesion     DATETIME NULL,
-  fecha_registro    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  fecha_modificacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  CONSTRAINT fk_usuario_rol     FOREIGN KEY (id_rol)     REFERENCES rol(id_rol),
-  CONSTRAINT fk_usuario_cliente FOREIGN KEY (id_cliente) REFERENCES cliente(id_cliente) ON DELETE SET NULL,
-  INDEX ix_usuario_rol (id_rol),
-  INDEX ix_usuario_cliente (id_cliente)
+  fecha_registro    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  fecha_modificacion DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_usuario_rol FOREIGN KEY (id_rol) REFERENCES rol(id_rol),
+  INDEX ix_usuario_rol (id_rol, estado),
+  INDEX ix_usuario_cliente (id_cliente),
+  INDEX ix_usuario_nombre (nombre_completo)
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------------------
@@ -74,12 +88,17 @@ CREATE TABLE cliente (
   direccion         VARCHAR(250) NULL,
   ciudad            VARCHAR(100) NULL,
   estado            ENUM('ACTIVO','INACTIVO') NOT NULL DEFAULT 'ACTIVO',
-  fecha_registro    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  fecha_modificacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  fecha_registro    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  fecha_modificacion DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_cliente_documento (tipo_documento, numero_documento),
   CONSTRAINT fk_cliente_asesor FOREIGN KEY (id_asesor) REFERENCES usuario(id_usuario),
-  INDEX ix_cliente_asesor (id_asesor)
+  INDEX ix_cliente_asesor (id_asesor),
+  INDEX ix_cliente_razon_social (razon_social),
+  INDEX ix_cliente_contacto (contacto_nombre)
 ) ENGINE=InnoDB;
+
+ALTER TABLE usuario
+  ADD CONSTRAINT fk_usuario_cliente FOREIGN KEY (id_cliente) REFERENCES cliente(id_cliente) ON DELETE SET NULL;
 
 CREATE TABLE edificio (
   id_edificio            INT AUTO_INCREMENT PRIMARY KEY,
@@ -98,9 +117,12 @@ CREATE TABLE edificio (
   latitud                DECIMAL(10,8) NULL,
   longitud               DECIMAL(11,8) NULL,
   estado                 ENUM('ACTIVO','INACTIVO') NOT NULL DEFAULT 'ACTIVO',
-  fecha_registro         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  fecha_registro         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  fecha_modificacion     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_edificio_cliente FOREIGN KEY (id_cliente) REFERENCES cliente(id_cliente),
-  INDEX ix_edificio_cliente (id_cliente)
+  INDEX ix_edificio_cliente (id_cliente),
+  INDEX ix_edificio_nombre (nombre),
+  INDEX ix_edificio_ciudad (ciudad)
 ) ENGINE=InnoDB;
 
 CREATE TABLE equipo (
@@ -120,25 +142,51 @@ CREATE TABLE equipo (
   profundidad_foso_mm INT NULL,
   fecha_puesta_marcha DATE NULL,
   estado             ENUM('ACTIVO','FUERA_SERVICIO','INACTIVO') NOT NULL DEFAULT 'ACTIVO',
-  fecha_registro     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  fecha_modificacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  fecha_registro     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  fecha_modificacion DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_equipo_edificio (id_edificio, identificacion),
   CONSTRAINT fk_equipo_edificio FOREIGN KEY (id_edificio) REFERENCES edificio(id_edificio),
-  INDEX ix_equipo_edificio (id_edificio)
+  INDEX ix_equipo_serie (numero_serie)
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------------------
--- 3. Variantes del equipo (tracción / hidráulico, enhebrado, máquina...)
---    Catálogo configurable; el inspector las elige al abrir el informe
---    y filtran qué ítems del checklist aplican.
+-- 3. Normas técnicas (versionadas)
+--    Una fila por parte y edición: NTC 5926-1:2012, NTC 5926-1:2021, NTC 5926-2:..., etc.
+--    Cada norma tiene su propio checklist (categorías e ítems) y sus plazos de corrección.
+--    Solo una edición por parte puede estar vigente (es la que se usa en las cotizaciones nuevas).
+-- ---------------------------------------------------------------------
+CREATE TABLE norma (
+  id_norma             INT AUTO_INCREMENT PRIMARY KEY,
+  codigo               VARCHAR(20)  NOT NULL COMMENT 'NTC 5926-1, NTC 5926-2, NTC 5926-3',
+  parte                TINYINT      NOT NULL COMMENT '1 = ascensores, 2 y 3 = siguientes partes de la norma',
+  version              SMALLINT     NOT NULL COMMENT 'Año de la edición: 2012, 2021...',
+  nombre               VARCHAR(255) NOT NULL,
+  titulo_informe       VARCHAR(255) NOT NULL COMMENT 'Título del PDF del informe',
+  plazo_dias_leve      INT NOT NULL DEFAULT 180 COMMENT 'Días para corregir un defecto LEVE',
+  plazo_dias_grave     INT NOT NULL DEFAULT 30  COMMENT 'Días para corregir un defecto GRAVE',
+  plazo_dias_muy_grave INT NOT NULL DEFAULT 0   COMMENT 'Días para corregir un defecto MUY GRAVE (0 = inmediato)',
+  vigente              TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Edición que se usa en las cotizaciones nuevas de esta parte',
+  activo               TINYINT(1) NOT NULL DEFAULT 1,
+  vigente_parte        TINYINT AS (IF(vigente = 1, parte, NULL)) STORED COMMENT 'Garantiza una sola edición vigente por parte',
+  fecha_creacion       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_norma (codigo, version),
+  UNIQUE KEY uq_norma_vigente (vigente_parte)
+) ENGINE=InnoDB;
+
+-- ---------------------------------------------------------------------
+-- 4. Variantes del equipo (tracción / hidráulico, enhebrado, máquina...)
+--    Catálogo configurable por parte de la norma; el inspector las elige al abrir
+--    el informe y filtran qué ítems del checklist aplican.
 -- ---------------------------------------------------------------------
 CREATE TABLE variante_tipo (
   id_variante_tipo INT AUTO_INCREMENT PRIMARY KEY,
-  codigo           VARCHAR(40)  NOT NULL UNIQUE COMMENT 'ACCIONAMIENTO, SUSPENSION, MAQUINA, CUARTO_MAQUINAS...',
+  parte_norma      TINYINT NOT NULL DEFAULT 1 COMMENT 'Parte de la NTC 5926 a la que pertenece (1 = ascensores)',
+  codigo           VARCHAR(40)  NOT NULL COMMENT 'ACCIONAMIENTO, SUSPENSION, MAQUINA, CUARTO_MAQUINAS...',
   nombre           VARCHAR(100) NOT NULL,
   obligatoria      TINYINT(1) NOT NULL DEFAULT 1,
   orden            INT NOT NULL DEFAULT 0,
-  activo           TINYINT(1) NOT NULL DEFAULT 1
+  activo           TINYINT(1) NOT NULL DEFAULT 1,
+  UNIQUE KEY uq_variante_tipo (parte_norma, codigo)
 ) ENGINE=InnoDB;
 
 CREATE TABLE variante_opcion (
@@ -164,7 +212,7 @@ CREATE TABLE equipo_variante (
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------------------
--- 4. Numeración consecutiva (COT, INS, INF, CER)
+-- 5. Numeración consecutiva (COT, INS, INF, CER)
 -- ---------------------------------------------------------------------
 CREATE TABLE consecutivo (
   prefijo       VARCHAR(10) NOT NULL,
@@ -174,12 +222,12 @@ CREATE TABLE consecutivo (
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------------------
--- 5. Cotizaciones
+-- 6. Cotizaciones
 -- ---------------------------------------------------------------------
 CREATE TABLE cotizacion (
   id_cotizacion            INT AUTO_INCREMENT PRIMARY KEY,
   numero_cotizacion        VARCHAR(20) NOT NULL UNIQUE COMMENT 'COT-2026-0001',
-  id_cliente               INT NOT NULL,
+  id_cliente               INT NOT NULL COMMENT 'Copia de edificio.id_cliente para filtrar rápido por cliente',
   id_edificio              INT NOT NULL,
   id_asesor                INT NOT NULL,
   fecha_cotizacion         DATE NOT NULL,
@@ -197,15 +245,17 @@ CREATE TABLE cotizacion (
   comentario_cliente       TEXT NULL,
   fecha_envio_programacion DATETIME NULL COMMENT 'Asesor acepta y envía a programación',
   ruta_pdf                 VARCHAR(500) NULL,
-  fecha_creacion           TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  fecha_modificacion       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  fecha_creacion           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  fecha_modificacion       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_cot_cliente   FOREIGN KEY (id_cliente)  REFERENCES cliente(id_cliente),
   CONSTRAINT fk_cot_edificio  FOREIGN KEY (id_edificio) REFERENCES edificio(id_edificio),
   CONSTRAINT fk_cot_asesor    FOREIGN KEY (id_asesor)   REFERENCES usuario(id_usuario),
   CONSTRAINT fk_cot_respuesta FOREIGN KEY (id_usuario_respuesta) REFERENCES usuario(id_usuario),
   INDEX ix_cot_cliente (id_cliente),
-  INDEX ix_cot_asesor (id_asesor),
-  INDEX ix_cot_estado (estado)
+  INDEX ix_cot_edificio (id_edificio),
+  INDEX ix_cot_asesor (id_asesor, estado),
+  INDEX ix_cot_estado (estado),
+  INDEX ix_cot_fecha (fecha_cotizacion)
 ) ENGINE=InnoDB;
 
 -- Un renglón por equipo cotizado. Aquí vive el ESTADO POR EQUIPO que ve el cliente.
@@ -213,6 +263,7 @@ CREATE TABLE cotizacion_equipo (
   id_cotizacion_equipo INT AUTO_INCREMENT PRIMARY KEY,
   id_cotizacion        INT NOT NULL,
   id_equipo            INT NOT NULL,
+  id_norma             INT NOT NULL COMMENT 'Norma (parte y edición) con la que se inspecciona',
   codigo_servicio      VARCHAR(25) NOT NULL UNIQUE COMMENT 'COT-2026-0001-01',
   tipo_servicio        ENUM('INSPECCION_INICIAL','INSPECCION_PERIODICA','REINSPECCION','EXTRAORDINARIA') NOT NULL DEFAULT 'INSPECCION_PERIODICA',
   descripcion          VARCHAR(255) NULL,
@@ -221,26 +272,31 @@ CREATE TABLE cotizacion_equipo (
                          'PENDIENTE_APROBACION',  -- cotización enviada al cliente
                          'APROBADO_CLIENTE',      -- cliente aprobó, falta que el asesor la pase
                          'POR_PROGRAMAR',         -- en bandeja de programación
-                         'PROGRAMADO',            -- fecha, hora e inspector asignados
+                         'PROGRAMADO',            -- fecha, hora e inspector asignados (1ª o 2ª visita)
                          'EN_INSPECCION',         -- inspector abrió el informe
                          'EN_REVISION',           -- inspector finalizó, lo revisa el director técnico
-                         'NO_CONFORME',           -- informe aprobado con defectos: el cliente/asesor solicita la 2ª visita
+                         'NO_CONFORME',           -- informe de 1ª visita no conforme: se solicita la 2ª visita
                          'SEGUNDA_VISITA_SOLICITADA', -- solicitada: en bandeja de programación
                          'INFORME_APROBADO',      -- informe conforme, visible al cliente; en certificados
                          'CERTIFICADO_LISTO',     -- certificado disponible para descarga
+                         'CERRADO_NO_CONFORME',   -- 2ª visita con hallazgos sin corregir: requiere cotización nueva
                          'RECHAZADO',
                          'ANULADO'
                        ) NOT NULL DEFAULT 'PENDIENTE_APROBACION',
   fecha_estado         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  plazo_dias           INT NULL COMMENT 'Días para corregir y hacer la 2ª visita (según hallazgos)',
+  plazo_dias           INT NULL COMMENT 'Días para corregir y hacer la 2ª visita (según hallazgos del informe de 1ª visita)',
   fecha_limite_correccion DATE NULL,
   fecha_solicitud_visita2 DATETIME NULL,
   id_usuario_solicitud_visita2 INT NULL,
+  id_servicio_anterior INT NULL COMMENT 'Servicio que quedó CERRADO_NO_CONFORME y originó esta nueva cotización',
   UNIQUE KEY uq_cot_equipo (id_cotizacion, id_equipo),
   CONSTRAINT fk_coteq_cotizacion FOREIGN KEY (id_cotizacion) REFERENCES cotizacion(id_cotizacion) ON DELETE CASCADE,
   CONSTRAINT fk_coteq_equipo     FOREIGN KEY (id_equipo)     REFERENCES equipo(id_equipo),
+  CONSTRAINT fk_coteq_norma      FOREIGN KEY (id_norma)      REFERENCES norma(id_norma),
   CONSTRAINT fk_coteq_solicita   FOREIGN KEY (id_usuario_solicitud_visita2) REFERENCES usuario(id_usuario),
-  INDEX ix_coteq_estado (estado)
+  CONSTRAINT fk_coteq_anterior   FOREIGN KEY (id_servicio_anterior) REFERENCES cotizacion_equipo(id_cotizacion_equipo),
+  INDEX ix_coteq_estado (estado),
+  INDEX ix_coteq_equipo (id_equipo)
 ) ENGINE=InnoDB;
 
 -- Línea de tiempo por equipo (trazabilidad completa)
@@ -251,33 +307,34 @@ CREATE TABLE historial_estado (
   estado_nuevo         VARCHAR(30) NOT NULL,
   id_usuario           INT NULL,
   comentario           VARCHAR(500) NULL,
-  fecha                TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  fecha                DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_hist_coteq   FOREIGN KEY (id_cotizacion_equipo) REFERENCES cotizacion_equipo(id_cotizacion_equipo) ON DELETE CASCADE,
   CONSTRAINT fk_hist_usuario FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario) ON DELETE SET NULL,
   INDEX ix_hist_coteq (id_cotizacion_equipo, fecha)
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------------------
--- 6. Programación
+-- 7. Programación
 -- ---------------------------------------------------------------------
 CREATE TABLE programacion (
   id_programacion    INT AUTO_INCREMENT PRIMARY KEY,
   id_cotizacion      INT NOT NULL,
   id_inspector       INT NOT NULL,
   id_programador     INT NOT NULL,
-  tipo_visita        ENUM('PRIMERA','SEGUNDA') NOT NULL DEFAULT 'PRIMERA' COMMENT 'SEGUNDA = cierre de hallazgos',
+  tipo_visita        ENUM('PRIMERA','SEGUNDA') NOT NULL DEFAULT 'PRIMERA' COMMENT 'SEGUNDA = cierre de hallazgos (no hay más visitas)',
   fecha_programada   DATE NOT NULL,
   hora_inicio        TIME NOT NULL,
   hora_fin_estimada  TIME NULL,
   estado             ENUM('PROGRAMADA','REPROGRAMADA','EN_CURSO','REALIZADA','CANCELADA') NOT NULL DEFAULT 'PROGRAMADA',
   observaciones      VARCHAR(500) NULL,
   motivo_cambio      VARCHAR(255) NULL,
-  fecha_creacion     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  fecha_modificacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  fecha_creacion     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  fecha_modificacion DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_prog_cotizacion FOREIGN KEY (id_cotizacion)  REFERENCES cotizacion(id_cotizacion),
   CONSTRAINT fk_prog_inspector  FOREIGN KEY (id_inspector)   REFERENCES usuario(id_usuario),
   CONSTRAINT fk_prog_programador FOREIGN KEY (id_programador) REFERENCES usuario(id_usuario),
   INDEX ix_prog_inspector_fecha (id_inspector, fecha_programada),
+  INDEX ix_prog_fecha_estado (fecha_programada, estado),
   INDEX ix_prog_cotizacion (id_cotizacion)
 ) ENGINE=InnoDB;
 
@@ -287,39 +344,46 @@ CREATE TABLE programacion_equipo (
   id_cotizacion_equipo INT NOT NULL,
   PRIMARY KEY (id_programacion, id_cotizacion_equipo),
   CONSTRAINT fk_progeq_prog  FOREIGN KEY (id_programacion)      REFERENCES programacion(id_programacion) ON DELETE CASCADE,
-  CONSTRAINT fk_progeq_coteq FOREIGN KEY (id_cotizacion_equipo) REFERENCES cotizacion_equipo(id_cotizacion_equipo)
+  CONSTRAINT fk_progeq_coteq FOREIGN KEY (id_cotizacion_equipo) REFERENCES cotizacion_equipo(id_cotizacion_equipo),
+  INDEX ix_progeq_coteq (id_cotizacion_equipo)
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------------------
--- 7. Checklist NTC 5926-1 (catálogo)
+-- 8. Checklist por norma (catálogo)
 -- ---------------------------------------------------------------------
 CREATE TABLE checklist_categoria (
   id_categoria   INT AUTO_INCREMENT PRIMARY KEY,
-  codigo         VARCHAR(20)  NOT NULL UNIQUE,
+  id_norma       INT NOT NULL,
+  codigo         VARCHAR(20)  NOT NULL,
   nombre         VARCHAR(150) NOT NULL COMMENT 'Cuarto de máquinas, Cabina, Foso, Hueco, Puertas...',
   descripcion    VARCHAR(500) NULL,
-  norma          VARCHAR(40)  NOT NULL DEFAULT 'NTC 5926-1',
   numeral_norma  VARCHAR(40)  NULL,
   orden          INT NOT NULL DEFAULT 0,
-  activo         TINYINT(1) NOT NULL DEFAULT 1
+  activo         TINYINT(1) NOT NULL DEFAULT 1,
+  UNIQUE KEY uq_categoria (id_norma, codigo),
+  CONSTRAINT fk_cat_norma FOREIGN KEY (id_norma) REFERENCES norma(id_norma)
 ) ENGINE=InnoDB;
 
 CREATE TABLE checklist_item (
   id_item               INT AUTO_INCREMENT PRIMARY KEY,
+  id_norma              INT NOT NULL COMMENT 'Igual a la norma de su categoría',
   id_categoria          INT NOT NULL,
-  numero                INT NOT NULL UNIQUE COMMENT 'Número de ítem en el informe (1..169)',
-  codigo                VARCHAR(20) NOT NULL UNIQUE COMMENT 'Ej: IT-001',
+  numero                INT NOT NULL COMMENT 'Número de ítem en el informe (1..169 en la 5926-1:2012)',
+  codigo                VARCHAR(20) NOT NULL COMMENT 'Ej: IT-001',
   numeral_norma         VARCHAR(40) NULL,
   descripcion           TEXT NOT NULL COMMENT 'Redactado como defecto: se marca NO CUMPLE si se presenta',
   criterio_cumplimiento TEXT NULL,
-  calificacion          ENUM('LEVE','GRAVE','MUY_GRAVE') NOT NULL COMMENT 'Calificación del defecto (numeral 6 NTC 5926-1): L, G, MG',
+  calificacion          ENUM('LEVE','GRAVE','MUY_GRAVE') NOT NULL COMMENT 'Calificación del defecto: L, G, MG',
   requiere_medicion     TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Obligación de medida, sin estimaciones',
   requiere_foto_medicion TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Va en la hoja de evidencia fotográfica de equipos de medición',
-  plazo_dias            INT NULL COMMENT 'Plazo propio de corrección; si es NULL se usa el de su calificación (parámetros)',
+  plazo_dias            INT NULL COMMENT 'Plazo propio de corrección; si es NULL se usa el de su calificación en la norma',
   unidad_medida         VARCHAR(20) NULL COMMENT 'mm, lux, m/s, kg, V...',
   obligatorio           TINYINT(1) NOT NULL DEFAULT 1,
   orden                 INT NOT NULL DEFAULT 0,
   activo                TINYINT(1) NOT NULL DEFAULT 1,
+  UNIQUE KEY uq_item_numero (id_norma, numero),
+  UNIQUE KEY uq_item_codigo (id_norma, codigo),
+  CONSTRAINT fk_item_norma     FOREIGN KEY (id_norma)     REFERENCES norma(id_norma),
   CONSTRAINT fk_item_categoria FOREIGN KEY (id_categoria) REFERENCES checklist_categoria(id_categoria),
   INDEX ix_item_categoria (id_categoria, orden)
 ) ENGINE=InnoDB;
@@ -338,14 +402,15 @@ CREATE TABLE checklist_item_variante (
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------------------
--- 8. Inspección (app móvil del inspector)
+-- 9. Inspección (app móvil del inspector)
+--    Una inspección por equipo cotizado. Guarda las dos únicas visitas posibles:
+--    la primera (checklist completo) y la segunda (cierre de hallazgos).
 -- ---------------------------------------------------------------------
 CREATE TABLE inspeccion (
   id_inspeccion        INT AUTO_INCREMENT PRIMARY KEY,
   numero_inspeccion    VARCHAR(20) NOT NULL UNIQUE COMMENT 'INS-2026-0001',
   id_cotizacion_equipo INT NOT NULL,
-  id_programacion      INT NOT NULL,
-  id_inspector         INT NOT NULL,
+  id_norma             INT NOT NULL COMMENT 'Copiada del servicio al abrir el informe',
   uuid_offline         CHAR(36) NULL UNIQUE COMMENT 'Generado en el celular para sincronizar sin duplicar',
   datos_equipo_json    LONGTEXT NULL COMMENT 'Copia de cliente/edificio/equipo al abrir el informe' CHECK (datos_equipo_json IS NULL OR JSON_VALID(datos_equipo_json)),
   -- Encabezado del informe
@@ -363,27 +428,31 @@ CREATE TABLE inspeccion (
   profundidad_foso_mm  INT NULL,
   recorrido_m          DECIMAL(8,2) NULL,
   -- Primera visita
+  id_programacion      INT NOT NULL,
+  id_inspector         INT NOT NULL,
   fecha_inicio         DATETIME NOT NULL,
   fecha_fin            DATETIME NULL,
-  -- Segunda visita (cierre de hallazgos)
+  -- Segunda visita (cierre de hallazgos). No existe una tercera.
   id_programacion_visita2 INT NULL,
   id_inspector_visita2 INT NULL,
-  fecha_visita2        DATETIME NULL,
+  fecha_inicio_visita2 DATETIME NULL,
+  fecha_fin_visita2    DATETIME NULL,
   estado               ENUM('EN_CURSO','FINALIZADA','DEVUELTA','APROBADA','EN_SEGUNDA_VISITA','CERRADA') NOT NULL DEFAULT 'EN_CURSO',
   observaciones_generales TEXT NULL,
   latitud              DECIMAL(10,8) NULL,
   longitud             DECIMAL(11,8) NULL,
-  sincronizada         TINYINT(1) NOT NULL DEFAULT 1,
-  fecha_sincronizacion DATETIME NULL,
-  fecha_creacion       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  fecha_modificacion   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  fecha_sincronizacion DATETIME NULL COMMENT 'Último guardado recibido desde el celular',
+  fecha_creacion       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  fecha_modificacion   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_insp_coteq     FOREIGN KEY (id_cotizacion_equipo) REFERENCES cotizacion_equipo(id_cotizacion_equipo),
+  CONSTRAINT fk_insp_norma     FOREIGN KEY (id_norma)             REFERENCES norma(id_norma),
   CONSTRAINT fk_insp_prog      FOREIGN KEY (id_programacion)      REFERENCES programacion(id_programacion),
   CONSTRAINT fk_insp_inspector FOREIGN KEY (id_inspector)         REFERENCES usuario(id_usuario),
   CONSTRAINT fk_insp_prog2     FOREIGN KEY (id_programacion_visita2) REFERENCES programacion(id_programacion),
   CONSTRAINT fk_insp_inspector2 FOREIGN KEY (id_inspector_visita2)  REFERENCES usuario(id_usuario),
   INDEX ix_insp_coteq (id_cotizacion_equipo),
-  INDEX ix_insp_inspector (id_inspector, estado)
+  INDEX ix_insp_inspector (id_inspector, estado),
+  INDEX ix_insp_inspector2 (id_inspector_visita2, estado)
 ) ENGINE=InnoDB;
 
 -- Variantes elegidas por el inspector al abrir el informe
@@ -411,17 +480,20 @@ CREATE TABLE inspeccion_resultado (
   hallazgo_director   TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Hallazgo adicional identificado en la atestación',
   estado_segunda_visita ENUM('CORREGIDO','NO_CORREGIDO') NULL,
   observacion_segunda_visita TEXT NULL,
-  fecha_registro      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  fecha_modificacion  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  modificado_en_cliente DATETIME(3) NULL COMMENT 'Hora del celular del último cambio: evita que un reenvío viejo pise uno nuevo',
+  fecha_registro      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  fecha_modificacion  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_resultado (id_inspeccion, id_item),
   CONSTRAINT fk_res_insp FOREIGN KEY (id_inspeccion) REFERENCES inspeccion(id_inspeccion) ON DELETE CASCADE,
-  CONSTRAINT fk_res_item FOREIGN KEY (id_item)       REFERENCES checklist_item(id_item)
+  CONSTRAINT fk_res_item FOREIGN KEY (id_item)       REFERENCES checklist_item(id_item),
+  INDEX ix_res_item_resultado (id_item, resultado)
 ) ENGINE=InnoDB;
 
 -- Álbum de fotos (~100 por equipo). Se guarda la ruta del archivo, no la imagen.
 CREATE TABLE inspeccion_foto (
   id_foto         INT AUTO_INCREMENT PRIMARY KEY,
   id_inspeccion   INT NOT NULL,
+  numero_visita   TINYINT NOT NULL DEFAULT 1 COMMENT '1 = primera visita, 2 = segunda visita (corrección)',
   id_resultado    INT NULL COMMENT 'Opcional: foto asociada a un hallazgo',
   uuid_offline    CHAR(36) NULL UNIQUE,
   nombre_archivo  VARCHAR(255) NOT NULL,
@@ -435,25 +507,28 @@ CREATE TABLE inspeccion_foto (
   fecha_captura   DATETIME NULL,
   latitud         DECIMAL(10,8) NULL,
   longitud        DECIMAL(11,8) NULL,
-  fecha_subida    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  fecha_subida    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT ck_foto_visita CHECK (numero_visita IN (1, 2)),
   CONSTRAINT fk_foto_insp      FOREIGN KEY (id_inspeccion) REFERENCES inspeccion(id_inspeccion) ON DELETE CASCADE,
   CONSTRAINT fk_foto_resultado FOREIGN KEY (id_resultado)  REFERENCES inspeccion_resultado(id_resultado) ON DELETE SET NULL,
-  INDEX ix_foto_insp (id_inspeccion, orden)
+  INDEX ix_foto_insp (id_inspeccion, numero_visita, orden)
 ) ENGINE=InnoDB;
 
--- Firmas al finalizar: inspector, técnico de mantenimiento y representante del edificio
+-- Firmas de cada visita: inspector, técnico de mantenimiento y representante del edificio
 CREATE TABLE inspeccion_firma (
   id_firma       INT AUTO_INCREMENT PRIMARY KEY,
   id_inspeccion  INT NOT NULL,
   numero_visita  TINYINT NOT NULL DEFAULT 1 COMMENT '1 = primera visita, 2 = cierre de hallazgos',
   tipo_firmante  ENUM('INSPECTOR','TECNICO_MANTENIMIENTO','REPRESENTANTE_EDIFICIO') NOT NULL,
   id_usuario     INT NULL COMMENT 'Si el firmante es usuario del sistema (inspector)',
+  uuid_offline   CHAR(36) NULL UNIQUE,
   nombre         VARCHAR(150) NOT NULL,
   documento      VARCHAR(30)  NULL,
   cargo          VARCHAR(100) NULL,
   empresa        VARCHAR(150) NULL COMMENT 'Empresa de mantenimiento del técnico',
   ruta_firma     VARCHAR(500) NOT NULL COMMENT 'PNG de la firma',
   fecha_firma    DATETIME NOT NULL,
+  CONSTRAINT ck_firma_visita CHECK (numero_visita IN (1, 2)),
   UNIQUE KEY uq_firma (id_inspeccion, numero_visita, tipo_firmante),
   CONSTRAINT fk_firma_insp    FOREIGN KEY (id_inspeccion) REFERENCES inspeccion(id_inspeccion) ON DELETE CASCADE,
   CONSTRAINT fk_firma_usuario FOREIGN KEY (id_usuario)    REFERENCES usuario(id_usuario) ON DELETE SET NULL
@@ -499,52 +574,51 @@ CREATE TABLE inspeccion_medicion (
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------------------
--- 9. Informe (revisión y atestación del director técnico)
+-- 10. Informe: UNA FILA POR VISITA
+--     numero_visita = 1 -> informe de primera visita (INF-AAAA-NNNN-1V)
+--     numero_visita = 2 -> informe de segunda visita / cierre de hallazgos (INF-AAAA-NNNN-2V)
+--     Cada informe tiene su propia revisión, atestación, firma del director, PDF y huella.
 -- ---------------------------------------------------------------------
 CREATE TABLE informe (
   id_informe            INT AUTO_INCREMENT PRIMARY KEY,
-  numero_informe        VARCHAR(20) NOT NULL UNIQUE COMMENT 'INF-2026-0001',
-  id_inspeccion         INT NOT NULL UNIQUE,
+  numero_informe        VARCHAR(25) NOT NULL UNIQUE COMMENT 'INF-2026-0001-1V / INF-2026-0001-2V',
+  id_inspeccion         INT NOT NULL,
+  numero_visita         TINYINT NOT NULL COMMENT '1 = primera visita, 2 = segunda visita',
   id_director           INT NULL,
   estado                ENUM('PENDIENTE_REVISION','DEVUELTO','APROBADO','ANULADO') NOT NULL DEFAULT 'PENDIENTE_REVISION',
   concepto              ENUM('CONFORME','NO_CONFORME') NULL,
   atestacion            TEXT NULL COMMENT 'Texto de atestación del director técnico',
   observaciones_revision TEXT NULL COMMENT 'Motivo de devolución o comentarios',
   ruta_firma_director   VARCHAR(500) NULL,
-  visita_actual         TINYINT NOT NULL DEFAULT 1 COMMENT '1 = primera visita, 2 = cierre de hallazgos',
-  concepto_visita1      ENUM('CONFORME','NO_CONFORME') NULL,
-  fecha_aprobacion_visita1 DATETIME NULL,
-  ruta_pdf_visita1      VARCHAR(500) NULL COMMENT 'Informe de primera visita (se conserva al emitir el de segunda)',
-  hash_visita1          CHAR(64) NULL,
-  ruta_firma_director_v1 VARCHAR(500) NULL,
-  plazo_dias            INT NULL COMMENT 'Plazo de corrección cuando es NO CONFORME',
-  fecha_limite_correccion DATE NULL,
-  total_corregidos      INT NOT NULL DEFAULT 0 COMMENT 'Segunda visita',
-  total_no_corregidos   INT NOT NULL DEFAULT 0,
-  total_leves           INT NOT NULL DEFAULT 0 COMMENT 'Resumen de hallazgos, congelado al aprobar',
+  -- Resumen de hallazgos, congelado al aprobar
+  total_leves           INT NOT NULL DEFAULT 0,
   total_graves          INT NOT NULL DEFAULT 0,
   total_muy_graves      INT NOT NULL DEFAULT 0,
   total_no_aplica       INT NOT NULL DEFAULT 0,
+  total_corregidos      INT NOT NULL DEFAULT 0 COMMENT 'Solo segunda visita',
+  total_no_corregidos   INT NOT NULL DEFAULT 0 COMMENT 'Solo segunda visita',
   fecha_revision        DATETIME NULL,
   fecha_aprobacion      DATETIME NULL,
   ruta_pdf              VARCHAR(500) NULL,
   hash_sha256           CHAR(64) NULL,
   fecha_envio_cliente   DATETIME NULL,
   fecha_envio_certificados DATETIME NULL,
-  fecha_creacion        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  fecha_creacion        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT ck_informe_visita CHECK (numero_visita IN (1, 2)),
+  UNIQUE KEY uq_informe_visita (id_inspeccion, numero_visita),
   CONSTRAINT fk_inf_insp     FOREIGN KEY (id_inspeccion) REFERENCES inspeccion(id_inspeccion),
   CONSTRAINT fk_inf_director FOREIGN KEY (id_director)   REFERENCES usuario(id_usuario),
-  INDEX ix_inf_estado (estado)
+  INDEX ix_inf_estado (estado, numero_visita)
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------------------
--- 10. Certificado
+-- 11. Certificado (se emite sobre el informe conforme: de 1ª o de 2ª visita)
 -- ---------------------------------------------------------------------
 CREATE TABLE certificado (
   id_certificado       INT AUTO_INCREMENT PRIMARY KEY,
   numero_certificado   VARCHAR(20) NOT NULL UNIQUE COMMENT 'CER-2026-0001',
   id_informe           INT NOT NULL UNIQUE,
-  id_cotizacion_equipo INT NOT NULL,
+  id_cotizacion_equipo INT NOT NULL COMMENT 'Copia para buscar rápido por servicio',
   id_emisor            INT NULL COMMENT 'Usuario rol CERTIFICADOS',
   estado               ENUM('EN_ELABORACION','EMITIDO','ENVIADO_CLIENTE','ANULADO') NOT NULL DEFAULT 'EN_ELABORACION',
   fecha_emision        DATE NULL,
@@ -554,15 +628,18 @@ CREATE TABLE certificado (
   hash_sha256          CHAR(64) NULL,
   fecha_envio_cliente  DATETIME NULL,
   motivo_anulacion     VARCHAR(255) NULL,
-  fecha_creacion       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  fecha_creacion       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_cert_informe FOREIGN KEY (id_informe)           REFERENCES informe(id_informe),
   CONSTRAINT fk_cert_coteq   FOREIGN KEY (id_cotizacion_equipo) REFERENCES cotizacion_equipo(id_cotizacion_equipo),
   CONSTRAINT fk_cert_emisor  FOREIGN KEY (id_emisor)            REFERENCES usuario(id_usuario),
+  INDEX ix_cert_coteq (id_cotizacion_equipo),
+  INDEX ix_cert_estado (estado),
   INDEX ix_cert_vencimiento (fecha_vencimiento)
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------------------
--- 11. Parámetros de la empresa (nombre, código de formato, texto de atestación...)
+-- 12. Parámetros de la empresa (nombre, código de formato, texto de atestación...)
+--     Los plazos de corrección y el título del informe están en `norma`.
 -- ---------------------------------------------------------------------
 CREATE TABLE parametro (
   clave        VARCHAR(60) PRIMARY KEY,
@@ -571,7 +648,7 @@ CREATE TABLE parametro (
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------------------
--- 12. Notificaciones y auditoría
+-- 13. Notificaciones
 -- ---------------------------------------------------------------------
 CREATE TABLE notificacion (
   id_notificacion   INT AUTO_INCREMENT PRIMARY KEY,
@@ -582,62 +659,60 @@ CREATE TABLE notificacion (
   id_referencia     INT NULL,
   enlace            VARCHAR(255) NULL COMMENT 'Ruta de la app',
   leida             TINYINT(1) NOT NULL DEFAULT 0,
-  fecha_creacion    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  fecha_creacion    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_notif_usuario FOREIGN KEY (id_usuario_destino) REFERENCES usuario(id_usuario) ON DELETE CASCADE,
-  INDEX ix_notif_usuario (id_usuario_destino, leida)
+  INDEX ix_notif_usuario (id_usuario_destino, leida, fecha_creacion)
 ) ENGINE=InnoDB;
-
-CREATE TABLE auditoria (
-  id_auditoria     BIGINT AUTO_INCREMENT PRIMARY KEY,
-  id_usuario       INT NULL,
-  tabla_afectada   VARCHAR(50) NOT NULL,
-  operacion        VARCHAR(20) NOT NULL,
-  id_registro      INT NULL,
-  datos_anteriores LONGTEXT NULL CHECK (datos_anteriores IS NULL OR JSON_VALID(datos_anteriores)),
-  datos_nuevos     LONGTEXT NULL CHECK (datos_nuevos IS NULL OR JSON_VALID(datos_nuevos)),
-  ip_origen        VARCHAR(45) NULL,
-  fecha_evento     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fk_aud_usuario FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario) ON DELETE SET NULL,
-  INDEX ix_aud_tabla (tabla_afectada, id_registro)
-) ENGINE=InnoDB;
-
-SET FOREIGN_KEY_CHECKS = 1;
 
 -- ---------------------------------------------------------------------
--- 13. Vista de seguimiento: filtrar todo por número de cotización
+-- 14. Vista de seguimiento: una fila por equipo cotizado.
+--     Permite filtrar todo por número de cotización, cliente, edificio, asesor o estado.
 -- ---------------------------------------------------------------------
 CREATE OR REPLACE VIEW v_seguimiento_equipo AS
 SELECT
+  ce.id_cotizacion_equipo,
+  c.id_cotizacion,
   c.numero_cotizacion,
   c.estado               AS estado_cotizacion,
   ce.codigo_servicio,
+  ce.tipo_servicio,
   ce.estado              AS estado_equipo,
   ce.fecha_estado,
   ce.plazo_dias,
   ce.fecha_limite_correccion,
+  n.id_norma,
+  CONCAT(n.codigo, ':', n.version) AS norma,
   cl.id_cliente,
   cl.razon_social        AS cliente,
   ed.id_edificio,
   ed.nombre              AS edificio,
+  ed.ciudad,
   eq.id_equipo,
   eq.identificacion      AS equipo,
+  c.id_asesor,
   ase.nombre_completo    AS asesor,
   p.tipo_visita,
   p.fecha_programada,
   p.hora_inicio,
   ins.nombre_completo    AS inspector,
+  i.id_inspeccion,
   i.numero_inspeccion,
   i.estado               AS estado_inspeccion,
-  inf.numero_informe,
-  inf.estado             AS estado_informe,
-  inf.concepto,
-  inf.ruta_pdf           AS pdf_informe,
+  inf1.id_informe        AS id_informe_v1,
+  inf1.numero_informe    AS numero_informe_v1,
+  inf1.estado            AS estado_informe_v1,
+  inf1.concepto          AS concepto_v1,
+  inf2.id_informe        AS id_informe_v2,
+  inf2.numero_informe    AS numero_informe_v2,
+  inf2.estado            AS estado_informe_v2,
+  inf2.concepto          AS concepto_v2,
+  cer.id_certificado,
   cer.numero_certificado,
   cer.estado             AS estado_certificado,
-  cer.fecha_vencimiento,
-  cer.ruta_pdf           AS pdf_certificado
+  cer.fecha_vencimiento
 FROM cotizacion_equipo ce
 JOIN cotizacion c   ON c.id_cotizacion = ce.id_cotizacion
+JOIN norma n        ON n.id_norma      = ce.id_norma
 JOIN cliente cl     ON cl.id_cliente   = c.id_cliente
 JOIN edificio ed    ON ed.id_edificio  = c.id_edificio
 JOIN equipo eq      ON eq.id_equipo    = ce.id_equipo
@@ -649,12 +724,15 @@ LEFT JOIN programacion p ON p.id_programacion = (
        SELECT MAX(pe.id_programacion) FROM programacion_equipo pe
        JOIN programacion p2 ON p2.id_programacion = pe.id_programacion AND p2.estado <> 'CANCELADA'
        WHERE pe.id_cotizacion_equipo = ce.id_cotizacion_equipo)
-LEFT JOIN usuario ins    ON ins.id_usuario = p.id_inspector
-LEFT JOIN informe inf    ON inf.id_inspeccion = i.id_inspeccion
-LEFT JOIN certificado cer ON cer.id_informe = inf.id_informe;
+LEFT JOIN usuario ins     ON ins.id_usuario = p.id_inspector
+LEFT JOIN informe inf1    ON inf1.id_inspeccion = i.id_inspeccion AND inf1.numero_visita = 1
+LEFT JOIN informe inf2    ON inf2.id_inspeccion = i.id_inspeccion AND inf2.numero_visita = 2
+LEFT JOIN certificado cer ON cer.id_certificado = (
+       SELECT MAX(c2.id_certificado) FROM certificado c2
+       WHERE c2.id_cotizacion_equipo = ce.id_cotizacion_equipo AND c2.estado <> 'ANULADO');
 
 -- ---------------------------------------------------------------------
--- 14. Ítems que aplican a cada inspección según sus variantes
+-- 15. Ítems que aplican a cada inspección según su norma y sus variantes
 --     aplica = 0 -> se precarga como NO_APLICA (el inspector puede cambiarlo)
 -- ---------------------------------------------------------------------
 CREATE OR REPLACE VIEW v_inspeccion_item_aplica AS
@@ -677,5 +755,14 @@ SELECT
           AND o2.id_variante_tipo = o.id_variante_tipo)
   ) THEN 0 ELSE 1 END AS aplica
 FROM inspeccion ins
-CROSS JOIN checklist_item i
+JOIN checklist_item i ON i.id_norma = ins.id_norma
 WHERE i.activo = 1;
+
+-- ---------------------------------------------------------------------
+-- 16. Control de migraciones (Alembic). Esta base nace en la revisión 0001_v2.
+--     Los cambios futuros se hacen con:  alembic revision -m "..."  /  alembic upgrade head
+-- ---------------------------------------------------------------------
+CREATE TABLE alembic_version (
+  version_num VARCHAR(32) NOT NULL PRIMARY KEY
+) ENGINE=InnoDB;
+INSERT INTO alembic_version (version_num) VALUES ('0001_v2');
