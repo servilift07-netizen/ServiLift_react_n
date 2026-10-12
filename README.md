@@ -53,7 +53,7 @@ Guía paso a paso: [GUIA_EJECUCION.md](GUIA_EJECUCION.md).
 
 ## Seguridad
 
-- `SECRET_KEY` obligatoria y robusta (el servidor no arranca con la de ejemplo).
+- Proyecto de demostración: el servidor arranca sin configurar clave secreta y todos los usuarios usan `123456`.
 - Fotos y firmas solo con enlaces firmados que vencen (no hay carpeta pública); PDF con enlaces temporales.
 - Permisos por rol en cada endpoint; el cliente solo ve lo suyo, informes aprobados y certificados enviados.
 

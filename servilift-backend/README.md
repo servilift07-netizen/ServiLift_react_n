@@ -9,7 +9,7 @@ API de la certificación de ascensores NTC 5926: clientes, cotizaciones, program
 python -m venv venv
 venv\Scripts\activate
 pip install -r requirements.txt
-copy .env.example .env      # generar SECRET_KEY: python -c "import secrets; print(secrets.token_hex(32))"
+copy .env.example .env      # solo si necesita otra base de datos; sin .env usa los valores por defecto
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 La base se crea con los scripts de `../database`. Documentación interactiva: http://localhost:8000/docs
@@ -19,7 +19,7 @@ La base se crea con los scripts de `../database`. Documentación interactiva: ht
 ```
 app/
 ├── main.py         app, CORS, rutas y entrega de fotos/firmas con enlace firmado
-├── config.py       .env (base, zona horaria, SECRET_KEY obligatoria, CORS)
+├── config.py       .env (base, zona horaria, CORS)
 ├── tiempo.py       hora de Colombia: ahora(), hoy() y conversión de fechas del celular
 ├── database.py     conexión (fija time_zone en cada conexión)
 ├── models.py       modelos ORM

@@ -17,9 +17,9 @@ def main():
         print(__doc__)
         sys.exit(1)
     nombre, correo = sys.argv[1], sys.argv[2].lower()
-    clave = getpass.getpass("Contraseña (mín. 8 caracteres): ")
-    if len(clave) < 8:
-        sys.exit("La contraseña debe tener al menos 8 caracteres")
+    clave = getpass.getpass("Contraseña (mín. 6 caracteres, ej. 123456): ")
+    if len(clave) < 6:
+        sys.exit("La contraseña debe tener al menos 6 caracteres")
     db = SessionLocal()
     try:
         if db.query(Usuario).filter(Usuario.correo == correo).first():

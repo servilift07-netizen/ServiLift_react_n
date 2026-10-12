@@ -1,7 +1,7 @@
 -- =====================================================================
 -- ServiLift - Datos iniciales de trabajo (usuarios, cliente, edificios, ascensores)
 -- Ejecutar después de 01_schema.sql y 02_seed.sql.
--- USUARIOS DE PRUEBA: todos con contraseña 123456 (cámbielas antes de usar en producción).
+-- USUARIOS DE PRUEBA: todos con contraseña 123456 (proyecto de demostración).
 -- Nombre, NIT y dirección del cliente y de los edificios se completan desde la app.
 -- =====================================================================
 USE servilift_db;

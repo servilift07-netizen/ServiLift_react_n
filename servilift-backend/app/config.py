@@ -5,8 +5,6 @@ import re
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-CLAVES_DE_EJEMPLO = {"cambie-esta-clave", "secret", "changeme", ""}
-
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
@@ -24,9 +22,10 @@ class Settings(BaseSettings):
     ZONA_HORARIA: str = "-05:00"
 
     # ============================================
-    # JWT - sin valor por defecto: se define en .env
+    # JWT - proyecto de demostración: trae una clave por defecto para arrancar sin configurar nada.
+    # Para un uso real, defina SECRET_KEY en .env.
     # ============================================
-    SECRET_KEY: str
+    SECRET_KEY: str = "servilift-demo-clave-de-firma-de-tokens"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 720  # 12 h: una jornada de inspección
 
@@ -43,14 +42,6 @@ class Settings(BaseSettings):
 
     # Orígenes web permitidos (además de localhost en desarrollo), separados por coma
     CORS_ORIGINS: str = ""
-
-    @field_validator("SECRET_KEY")
-    @classmethod
-    def _clave_segura(cls, v: str) -> str:
-        if v.strip().lower() in CLAVES_DE_EJEMPLO or len(v) < 32:
-            raise ValueError("SECRET_KEY insegura: genere una con "
-                             "python -c \"import secrets; print(secrets.token_hex(32))\" y póngala en .env")
-        return v
 
     @field_validator("ZONA_HORARIA")
     @classmethod

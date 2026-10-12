@@ -23,10 +23,8 @@ python -m venv venv
 venv\Scripts\activate
 pip install -r requirements.txt
 copy .env.example .env
-python -c "import secrets; print(secrets.token_hex(32))"
 ```
-Pegue la clave que imprime el último comando en `SECRET_KEY=` del archivo `.env`
-(el servidor **no arranca** con una clave vacía, de ejemplo o corta).
+No hay que configurar ninguna clave secreta: el `.env` solo hace falta si la base de datos no es la de XAMPP por defecto.
 
 Cada vez que vaya a trabajar:
 ```
@@ -59,7 +57,7 @@ Se abre el navegador en http://localhost:8081 con el login.
 
 ## 5. Usuarios de prueba (contraseña `123456`)
 admin@gmail.com, asesor@gmail.com, programacion@gmail.com, inspector@gmail.com, director@gmail.com,
-certificados@gmail.com, cliente@gmail.com. Cámbielos antes de usar el sistema en producción.
+certificados@gmail.com, cliente@gmail.com. Los usuarios nuevos también se pueden crear con `123456`.
 
 ## 6. Recorrido del flujo completo
 1. **Asesor**: Clientes y edificios → Edificios → *Edificio 1* → *Nueva cotización* → elegir equipos, valor y norma → *Enviar al cliente*.
@@ -88,7 +86,6 @@ venv\Scripts\python -m tests.test_flujo
 ## Problemas comunes
 | Síntoma | Solución |
 |---|---|
-| El backend no arranca: "SECRET_KEY insegura" | Genere la clave (paso 2) y póngala en `.env` |
 | Login: "Sin conexión con el servidor" | El backend no está encendido o `EXPO_PUBLIC_API_URL` es incorrecta |
 | Cambié `.env` de la app y no toma la IP | Detenga Expo y vuelva a ejecutar `npx expo start --clear` |
 | Error de conexión a la base | MySQL no está encendido en XAMPP |

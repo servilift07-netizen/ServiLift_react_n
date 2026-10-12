@@ -26,7 +26,7 @@ from app.security import hash_password
 
 c = TestClient(app)
 SUF = uuid.uuid4().hex[:6]
-CLAVE = "Prueba123*"
+CLAVE = "123456"  # misma contraseña de todos los usuarios de prueba
 FIRMANTES = (("INSPECTOR", "Inspector Prueba"), ("TECNICO_MANTENIMIENTO", "Técnico XYZ"),
              ("REPRESENTANTE_EDIFICIO", "Administradora"))
 VARIANTES = {"ACCIONAMIENTO": "ELECTRICO", "ENHEBRADO": "1_1", "MAQUINA": "GEARLESS", "TRACCION_POR": "CABLE",
