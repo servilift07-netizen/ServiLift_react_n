@@ -1,5 +1,6 @@
 # app/routes/clientes.py
 # El asesor registra clientes, sus edificios y los equipos de cada edificio.
+# Búsqueda por nombre (cliente, edificio, equipo) y equipos filtrados por edificio.
 
 from datetime import date
 
@@ -13,6 +14,8 @@ from app.models import Cliente, Edificio, Equipo, Usuario
 from app.routes.serializers import cliente_dict, edificio_dict, equipo_dict, usuario_dict
 from app.routes.usuarios import UsuarioIn, crear_usuario
 from app.security import ASESOR, CLIENTE, get_current_user, require_roles
+
+LIMITE_BUSQUEDA = 200
 
 router = APIRouter(tags=["Clientes, edificios y equipos"])
 
@@ -124,10 +127,11 @@ def listar_clientes(buscar: str | None = None, solo_mios: bool = False, db: Sess
         q = q.filter(Cliente.id_cliente == usuario.id_cliente)
     if solo_mios:
         q = q.filter(Cliente.id_asesor == usuario.id_usuario)
-    if buscar:
-        like = f"%{buscar}%"
-        q = q.filter(or_(Cliente.razon_social.like(like), Cliente.numero_documento.like(like)))
-    return [cliente_dict(c) for c in q.order_by(Cliente.razon_social).all()]
+    if buscar and buscar.strip():
+        like = f"%{buscar.strip()}%"
+        q = q.filter(or_(Cliente.razon_social.like(like), Cliente.numero_documento.like(like),
+                         Cliente.contacto_nombre.like(like), Cliente.ciudad.like(like)))
+    return [cliente_dict(c) for c in q.order_by(Cliente.razon_social).limit(LIMITE_BUSQUEDA).all()]
 
 
 @router.post("/clientes", status_code=201)
@@ -175,6 +179,27 @@ def crear_usuario_cliente(id_cliente: int, datos: UsuarioClienteIn, db: Session 
 # ============================================
 # EDIFICIOS
 # ============================================
+@router.get("/edificios")
+def buscar_edificios(buscar: str | None = None, id_cliente: int | None = None, db: Session = Depends(get_db),
+                     usuario: Usuario = Depends(get_current_user)):
+    """Busca edificios por nombre, dirección, barrio, ciudad o nombre del cliente."""
+    q = db.query(Edificio).join(Cliente)
+    if usuario.rol_codigo == CLIENTE:
+        q = q.filter(Edificio.id_cliente == usuario.id_cliente)
+    elif id_cliente:
+        q = q.filter(Edificio.id_cliente == id_cliente)
+    if buscar and buscar.strip():
+        like = f"%{buscar.strip()}%"
+        q = q.filter(or_(Edificio.nombre.like(like), Edificio.direccion.like(like), Edificio.barrio.like(like),
+                         Edificio.ciudad.like(like), Cliente.razon_social.like(like)))
+    salida = []
+    for e in q.order_by(Edificio.nombre).limit(LIMITE_BUSQUEDA).all():
+        d = edificio_dict(e)
+        d["cliente"] = e.cliente.razon_social
+        salida.append(d)
+    return salida
+
+
 @router.get("/clientes/{id_cliente}/edificios")
 def listar_edificios(id_cliente: int, db: Session = Depends(get_db), usuario: Usuario = Depends(get_current_user)):
     c = _cliente_visible(db, id_cliente, usuario)
@@ -210,6 +235,30 @@ def actualizar_edificio(id_edificio: int, datos: EdificioUpdate, db: Session = D
 # ============================================
 # EQUIPOS
 # ============================================
+@router.get("/equipos")
+def listar_equipos(id_edificio: int | None = None, buscar: str | None = None, db: Session = Depends(get_db),
+                   usuario: Usuario = Depends(get_current_user)):
+    """Equipos de un edificio (id_edificio) y/o búsqueda por identificación, marca o serial."""
+    if not id_edificio and not (buscar and buscar.strip()):
+        raise HTTPException(400, "Indique el edificio o un texto para buscar")
+    q = db.query(Equipo).join(Edificio)
+    if usuario.rol_codigo == CLIENTE:
+        q = q.filter(Edificio.id_cliente == usuario.id_cliente)
+    if id_edificio:
+        _edificio_visible(db, id_edificio, usuario)
+        q = q.filter(Equipo.id_edificio == id_edificio)
+    if buscar and buscar.strip():
+        like = f"%{buscar.strip()}%"
+        q = q.filter(or_(Equipo.identificacion.like(like), Equipo.marca.like(like), Equipo.numero_serie.like(like),
+                         Edificio.nombre.like(like)))
+    salida = []
+    for eq in q.order_by(Edificio.nombre, Equipo.identificacion).limit(LIMITE_BUSQUEDA).all():
+        d = equipo_dict(eq)
+        d["edificio"] = eq.edificio.nombre
+        salida.append(d)
+    return salida
+
+
 @router.post("/edificios/{id_edificio}/equipos", status_code=201)
 def crear_equipo(id_edificio: int, datos: EquipoIn, db: Session = Depends(get_db),
                  usuario: Usuario = Depends(require_roles(ASESOR))):
