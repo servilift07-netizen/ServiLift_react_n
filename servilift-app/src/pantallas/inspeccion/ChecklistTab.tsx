@@ -2,12 +2,13 @@
 // y se sincroniza solo. En la segunda visita muestra solo los hallazgos para marcarlos corregidos / no corregidos.
 import { memo, useMemo, useState } from 'react';
 import { Image, ScrollView, View } from 'react-native';
-import { Button, Chip, List, ProgressBar, SegmentedButtons, Text } from 'react-native-paper';
+import { Button, Chip, List, Text } from 'react-native-paper';
 
 import { Api, url } from '@/api/cliente';
 import { CampoDiferido } from '@/componentes/CampoDiferido';
 import { EstadoCarga, Icon } from '@/componentes/Comunes';
 import { useDialogos } from '@/componentes/Dialogos';
+import { BarraProgreso, Segmentos } from '@/componentes/Segmentos';
 import { useCarga } from '@/hooks/useCarga';
 import { cola } from '@/offline/cola';
 import { useSincronizacion } from '@/offline/SincronizacionContext';
@@ -74,12 +75,12 @@ export default function ChecklistTab({ idInspeccion, editable, segundaVisita }: 
         </Text>
         {!segundaVisita && (
           <>
-            <ProgressBar progress={r.total ? r.calificados / r.total : 0} color={Colores.acento} />
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+            <BarraProgreso valor={r.total ? r.calificados / r.total : 0} />
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
               {FILTROS.map(([v, t]) => (
                 <Chip key={v} selected={filtro === v} onPress={() => setFiltro(v)} compact>{t}</Chip>
               ))}
-            </ScrollView>
+            </View>
           </>
         )}
       </View>
@@ -171,15 +172,12 @@ const Item = memo(function Item({ it, idInspeccion, editable, segundaVisita, fot
         {segundaVisita ? (
           <>
             {r?.observacion && <Text style={{ fontSize: 12, color: Colores.gris }}>Hallazgo 1ª visita: {r.observacion}</Text>}
-            <SegmentedButtons
-              value={r?.estado_segunda_visita ?? ''}
-              onValueChange={(v) => editable && guardar({ estado_segunda_visita: v })}
-              buttons={[
-                { value: 'CORREGIDO', label: 'Corregido', icon: 'check', disabled: !editable,
-                  style: r?.estado_segunda_visita === 'CORREGIDO' ? { backgroundColor: '#D4EDDA' } : undefined },
-                { value: 'NO_CORREGIDO', label: 'No corregido', icon: 'close', disabled: !editable,
-                  style: r?.estado_segunda_visita === 'NO_CORREGIDO' ? { backgroundColor: '#F8D7DA' } : undefined },
-              ]}
+            <Segmentos
+              valor={r?.estado_segunda_visita ?? ''}
+              deshabilitado={!editable}
+              onCambiar={(v) => guardar({ estado_segunda_visita: v })}
+              opciones={[{ valor: 'CORREGIDO', texto: 'Corregido', fondo: '#D4EDDA' },
+                { valor: 'NO_CORREGIDO', texto: 'No corregido', fondo: '#F8D7DA' }]}
             />
             <CampoDiferido label="Observación segunda visita" valor={r?.observacion_segunda_visita ?? ''}
               disabled={!editable || !r?.estado_segunda_visita} multiline
@@ -187,13 +185,13 @@ const Item = memo(function Item({ it, idInspeccion, editable, segundaVisita, fot
           </>
         ) : (
           <>
-            <SegmentedButtons
-              value={resultado}
-              onValueChange={(v) => editable && guardar({ resultado: v || 'NO_VERIFICADO' })}
-              buttons={(['CUMPLE', 'NO_CUMPLE', 'NO_APLICA'] as const).map((v) => ({
-                value: v, label: v === 'CUMPLE' ? 'Cumple' : v === 'NO_CUMPLE' ? 'No cumple' : 'N/A', disabled: !editable,
-                style: resultado === v ? { backgroundColor: FONDO_RESULTADO[v] } : undefined,
-              }))}
+            <Segmentos
+              valor={resultado}
+              deshabilitado={!editable}
+              onCambiar={(v) => guardar({ resultado: v === resultado ? 'NO_VERIFICADO' : v })}
+              opciones={[{ valor: 'CUMPLE', texto: 'Cumple', fondo: FONDO_RESULTADO.CUMPLE },
+                { valor: 'NO_CUMPLE', texto: 'No cumple', fondo: FONDO_RESULTADO.NO_CUMPLE },
+                { valor: 'NO_APLICA', texto: 'N/A', fondo: FONDO_RESULTADO.NO_APLICA }]}
             />
             {it.requiere_medicion && resultado !== 'NO_APLICA' && (
               <CampoDiferido label={`Medida *${it.unidad_medida ? ` (${it.unidad_medida})` : ''}`} valor={r?.valor_medido ?? ''}

@@ -3,13 +3,14 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
-import { Button, SegmentedButtons, Text } from 'react-native-paper';
+import { Button, Text } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Api, ApiError } from '@/api/cliente';
 import { AvisoCache, EstadoCarga, Icon } from '@/componentes/Comunes';
 import { useDialogos } from '@/componentes/Dialogos';
 import { BotonHistorial } from '@/componentes/Historial';
+import { Segmentos } from '@/componentes/Segmentos';
 import { useCarga } from '@/hooks/useCarga';
 import { useSincronizacion } from '@/offline/SincronizacionContext';
 import { Rol, useSesion } from '@/sesion/SesionContext';
@@ -96,16 +97,11 @@ export default function Inspeccion() {
               texto={`${pendientes.length} cambio(s) guardados en el teléfono${sync.enviando ? ': enviando…' : ', se enviarán al recuperar señal'}${conError ? ` · ${conError} con error` : ''}`}
               accion={() => router.navigate('/sincronizacion')} />
           : <Aviso color={Colores.exito} icono="cloud-check-outline" texto="Todo sincronizado con el servidor" />)}
-        <SegmentedButtons
-          value={pestana}
-          onValueChange={setPestana}
-          density="small"
-          buttons={[
-            { value: 'datos', label: 'Datos', icon: 'information-outline' },
-            { value: 'checklist', label: 'Checklist', icon: 'format-list-checks' },
-            { value: 'fotos', label: 'Fotos', icon: 'image-multiple-outline' },
-            { value: 'firmas', label: 'Firmas', icon: 'draw' },
-          ]}
+        <Segmentos
+          valor={pestana}
+          onCambiar={setPestana}
+          opciones={[{ valor: 'datos', texto: 'Datos' }, { valor: 'checklist', texto: 'Checklist' },
+            { valor: 'fotos', texto: 'Fotos' }, { valor: 'firmas', texto: 'Firmas' }]}
           style={{ marginBottom: 8 }}
         />
       </View>

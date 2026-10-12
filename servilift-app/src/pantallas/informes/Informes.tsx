@@ -2,10 +2,11 @@
 import { router, Stack } from 'expo-router';
 import { useState } from 'react';
 import { RefreshControl, View } from 'react-native';
-import { SegmentedButtons, Text } from 'react-native-paper';
+import { Text } from 'react-native-paper';
 
 import { Api } from '@/api/cliente';
 import { Contenido, EstadoCarga, EstadoChip, Fila, Tarjeta, Vacio } from '@/componentes/Comunes';
+import { Segmentos } from '@/componentes/Segmentos';
 import { useCarga } from '@/hooks/useCarga';
 import { Colores } from '@/tema';
 
@@ -16,8 +17,8 @@ export function ListaInformes({ estado }: { estado: 'PENDIENTE_REVISION' | 'APRO
     <>
       <Stack.Screen options={{ title: estado === 'APROBADO' ? 'Informes aprobados' : 'Informes por revisar' }} />
       <Contenido refreshControl={<RefreshControl refreshing={false} onRefresh={c.recargar} />}>
-        <SegmentedButtons value={visita} onValueChange={setVisita} style={{ marginBottom: 8 }}
-          buttons={[{ value: '', label: 'Todos' }, { value: '1', label: '1ª visita' }, { value: '2', label: '2ª visita' }]} />
+        <Segmentos valor={visita} onCambiar={setVisita} style={{ marginBottom: 8 }}
+          opciones={[{ valor: '', texto: 'Todos' }, { valor: '1', texto: '1ª visita' }, { valor: '2', texto: '2ª visita' }]} />
         {!c.datos ? <EstadoCarga error={c.error} onReintentar={c.recargar} />
           : !c.datos.length ? <Vacio texto={estado === 'APROBADO' ? 'No hay informes aprobados' : 'No hay informes por revisar'} icono="clipboard-check-outline" />
             : c.datos.map((inf) => {

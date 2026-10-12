@@ -4,7 +4,7 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Image, ScrollView, View } from 'react-native';
-import { Button, Chip, SegmentedButtons, Text, TextInput } from 'react-native-paper';
+import { Button, Chip, Text, TextInput } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Api, url } from '@/api/cliente';
@@ -12,6 +12,7 @@ import { Selector } from '@/componentes/Campos';
 import { Cifra, Dato, EstadoCarga, EstadoChip, Fila, Tarjeta, Titulo } from '@/componentes/Comunes';
 import { useDialogos } from '@/componentes/Dialogos';
 import { BotonHistorial } from '@/componentes/Historial';
+import { Segmentos } from '@/componentes/Segmentos';
 import { useCarga } from '@/hooks/useCarga';
 import { Colores, etiqueta, fecha, fechaHora } from '@/tema';
 import ChecklistTab from '../inspeccion/ChecklistTab';
@@ -45,8 +46,8 @@ export default function Revision() {
     <View style={{ flex: 1 }}>
       <Stack.Screen options={{ title: `${i.numero_informe} · ${i.servicio.equipo.identificacion}` }} />
       <View style={{ backgroundColor: '#fff', padding: 12, paddingBottom: 8 }}>
-        <SegmentedButtons value={pestana} onValueChange={setPestana} density="small"
-          buttons={[{ value: 'resumen', label: 'Resumen' }, { value: 'checklist', label: 'Checklist' }, { value: 'fotos', label: 'Fotos' }]} />
+        <Segmentos valor={pestana} onCambiar={setPestana}
+          opciones={[{ valor: 'resumen', texto: 'Resumen' }, { valor: 'checklist', texto: 'Checklist' }, { valor: 'fotos', texto: 'Fotos' }]} />
       </View>
       <View style={{ flex: 1 }}>
         {pestana === 'resumen' && <Resumen inf={i} insp={insp.datos} irA={setPestana} />}

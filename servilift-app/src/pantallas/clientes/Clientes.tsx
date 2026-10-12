@@ -2,11 +2,12 @@
 import { router, Stack } from 'expo-router';
 import { useState } from 'react';
 import { RefreshControl, View } from 'react-native';
-import { FAB, List, SegmentedButtons, TextInput } from 'react-native-paper';
+import { FAB, List, TextInput } from 'react-native-paper';
 
 import { Api } from '@/api/cliente';
 import { Contenido, EstadoCarga, Icon, Tarjeta, Vacio } from '@/componentes/Comunes';
 import { useDialogos } from '@/componentes/Dialogos';
+import { Segmentos } from '@/componentes/Segmentos';
 import { useCarga } from '@/hooks/useCarga';
 import { Rol, useSesion } from '@/sesion/SesionContext';
 import { CAMPOS_CLIENTE } from '../catalogos';
@@ -29,11 +30,10 @@ export default function Clientes() {
     <View style={{ flex: 1 }}>
       <Stack.Screen options={{ title: 'Clientes y edificios' }} />
       <Contenido refreshControl={<RefreshControl refreshing={false} onRefresh={c.recargar} />}>
-        <SegmentedButtons
-          value={modo}
-          onValueChange={(v) => setModo(v as any)}
-          buttons={[{ value: 'clientes', label: 'Clientes', icon: 'account-group-outline' },
-            { value: 'edificios', label: 'Edificios', icon: 'domain' }]}
+        <Segmentos
+          valor={modo}
+          onCambiar={(v) => setModo(v as 'clientes' | 'edificios')}
+          opciones={[{ valor: 'clientes', texto: 'Clientes' }, { valor: 'edificios', texto: 'Edificios' }]}
           style={{ marginBottom: 8 }}
         />
         <TextInput
