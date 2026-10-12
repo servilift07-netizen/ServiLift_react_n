@@ -1,8 +1,6 @@
 # app/services/flujo.py
 # Numeración consecutiva, máquina de estados por equipo y notificaciones.
 
-from datetime import datetime
-
 from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -10,12 +8,13 @@ from sqlalchemy.orm import Session
 from app.models import (
     Consecutivo, Cotizacion, CotizacionEquipo, HistorialEstado, Notificacion, Parametro, Rol, Usuario,
 )
+from app.tiempo import ahora
 
 # ============================================
 # CONSECUTIVOS: COT-2026-0001, INS-..., INF-..., CER-...
 # ============================================
 def siguiente_numero(db: Session, prefijo: str) -> str:
-    anio = datetime.now().year
+    anio = ahora().year
     fila = db.execute(
         select(Consecutivo).where(Consecutivo.prefijo == prefijo, Consecutivo.anio == anio).with_for_update()
     ).scalar_one_or_none()
@@ -36,16 +35,19 @@ TRANSICIONES = {
     "POR_PROGRAMAR": {"PROGRAMADO", "ANULADO"},
     "PROGRAMADO": {"EN_INSPECCION", "POR_PROGRAMAR", "SEGUNDA_VISITA_SOLICITADA", "ANULADO"},
     "EN_INSPECCION": {"EN_REVISION", "POR_PROGRAMAR", "NO_CONFORME"},
-    "EN_REVISION": {"INFORME_APROBADO", "NO_CONFORME", "EN_INSPECCION"},
+    # 1ª visita: conforme -> INFORME_APROBADO, no conforme -> NO_CONFORME.
+    # 2ª visita: todo corregido -> INFORME_APROBADO, algo sin corregir -> CERRADO_NO_CONFORME (no hay 3ª visita).
+    "EN_REVISION": {"INFORME_APROBADO", "NO_CONFORME", "CERRADO_NO_CONFORME", "EN_INSPECCION"},
     "NO_CONFORME": {"SEGUNDA_VISITA_SOLICITADA"},          # el cliente o el asesor la solicita
     "SEGUNDA_VISITA_SOLICITADA": {"PROGRAMADO"},          # programación agenda el cierre de hallazgos
     "INFORME_APROBADO": {"CERTIFICADO_LISTO"},
     "CERTIFICADO_LISTO": set(),
+    "CERRADO_NO_CONFORME": set(),                         # el equipo necesita una cotización nueva
     "RECHAZADO": set(),
     "ANULADO": set(),
 }
 
-ESTADOS_FINALES = {"CERTIFICADO_LISTO", "RECHAZADO", "ANULADO"}
+ESTADOS_FINALES = {"CERTIFICADO_LISTO", "CERRADO_NO_CONFORME", "RECHAZADO", "ANULADO"}
 
 ETIQUETAS_ESTADO = {
     "PENDIENTE_APROBACION": "Pendiente por aprobación",
@@ -58,6 +60,7 @@ ETIQUETAS_ESTADO = {
     "SEGUNDA_VISITA_SOLICITADA": "Segunda visita solicitada",
     "INFORME_APROBADO": "Informe disponible",
     "CERTIFICADO_LISTO": "Certificado listo",
+    "CERRADO_NO_CONFORME": "No conforme en 2ª visita: requiere cotización nueva",
     "RECHAZADO": "Rechazado",
     "ANULADO": "Anulado",
 }
@@ -76,7 +79,7 @@ def cambiar_estado(db: Session, ce: CotizacionEquipo, nuevo: str, usuario: Usuar
         comentario=comentario,
     ))
     ce.estado = nuevo
-    ce.fecha_estado = datetime.now()
+    ce.fecha_estado = ahora()
     _actualizar_estado_cotizacion(ce.cotizacion)
 
 

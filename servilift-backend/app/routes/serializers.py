@@ -1,18 +1,21 @@
 # app/routes/serializers.py
 # Conversión de modelos a dict para las respuestas JSON.
 
-from datetime import date
+from datetime import date, datetime
 
 from app.models import (
-    Cliente, Cotizacion, CotizacionEquipo, Edificio, Equipo, Programacion, Usuario,
+    Cliente, Cotizacion, CotizacionEquipo, Edificio, Equipo, Norma, Programacion, Usuario,
 )
 from app.services.flujo import ETIQUETAS_ESTADO
+from app.tiempo import con_zona, hoy
 
 
 def _f(v):
-    """Decimal -> float, fechas -> iso, resto igual."""
+    """Decimal -> float, fecha-hora -> ISO con la zona de Colombia (-05:00), fecha -> AAAA-MM-DD."""
     if v is None:
         return None
+    if isinstance(v, datetime):
+        return con_zona(v).isoformat()
     if hasattr(v, "isoformat"):
         return v.isoformat()
     if v.__class__.__name__ == "Decimal":
@@ -62,9 +65,17 @@ def equipo_dict(e: Equipo):
     return fila(e, CAMPOS_EQUIPO)
 
 
+def norma_dict(n: Norma):
+    d = fila(n, ["id_norma", "codigo", "parte", "version", "nombre", "titulo_informe", "plazo_dias_leve",
+                 "plazo_dias_grave", "plazo_dias_muy_grave", "vigente", "activo"])
+    d["etiqueta"] = n.etiqueta
+    return d
+
+
 def cot_equipo_dict(ce: CotizacionEquipo):
-    d = fila(ce, ["id_cotizacion_equipo", "id_cotizacion", "id_equipo", "codigo_servicio", "tipo_servicio",
-                  "descripcion", "valor", "estado", "fecha_estado"])
+    d = fila(ce, ["id_cotizacion_equipo", "id_cotizacion", "id_equipo", "id_norma", "codigo_servicio",
+                  "tipo_servicio", "descripcion", "valor", "estado", "fecha_estado", "id_servicio_anterior"])
+    d["norma"] = ce.norma.etiqueta if ce.norma else None
     d["estado_etiqueta"] = ETIQUETAS_ESTADO.get(ce.estado, ce.estado)
     d["equipo"] = equipo_dict(ce.equipo) if ce.equipo else None
     d.update(plazo_dict(ce.plazo_dias, ce.fecha_limite_correccion, ce.estado))
@@ -80,7 +91,7 @@ def plazo_dict(plazo_dias, fecha_limite, estado) -> dict:
     return {
         "plazo_dias": plazo_dias,
         "fecha_limite_correccion": _f(fecha_limite),
-        "dias_restantes": (fecha_limite - date.today()).days if activo else None,
+        "dias_restantes": (fecha_limite - hoy()).days if activo else None,
     }
 
 

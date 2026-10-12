@@ -1,5 +1,5 @@
 # app/models.py
-# Modelos SQLAlchemy de servilift_db (ver database/01_schema.sql).
+# Modelos SQLAlchemy de servilift_db v2 (ver database/01_schema.sql).
 # Los ENUM de la base se mapean como String: la base valida los valores.
 
 from sqlalchemy import (
@@ -122,12 +122,39 @@ class Equipo(Base):
 
 
 # ============================================
+# NORMAS (parte y edición: NTC 5926-1:2012, ...)
+# ============================================
+class Norma(Base):
+    __tablename__ = "norma"
+    id_norma = Column(Integer, primary_key=True)
+    codigo = Column(String(20), nullable=False)
+    parte = Column(SmallInteger, nullable=False)
+    version = Column(SmallInteger, nullable=False)
+    nombre = Column(String(255), nullable=False)
+    titulo_informe = Column(String(255), nullable=False)
+    plazo_dias_leve = Column(Integer, nullable=False, default=180)
+    plazo_dias_grave = Column(Integer, nullable=False, default=30)
+    plazo_dias_muy_grave = Column(Integer, nullable=False, default=0)
+    vigente = Column(Boolean, nullable=False, default=False)
+    activo = Column(Boolean, nullable=False, default=True)
+
+    @property
+    def etiqueta(self) -> str:
+        return f"{self.codigo}:{self.version}"
+
+    def plazo_por_calificacion(self, calificacion: str) -> int:
+        return {"LEVE": self.plazo_dias_leve, "GRAVE": self.plazo_dias_grave,
+                "MUY_GRAVE": self.plazo_dias_muy_grave}[calificacion]
+
+
+# ============================================
 # VARIANTES
 # ============================================
 class VarianteTipo(Base):
     __tablename__ = "variante_tipo"
     id_variante_tipo = Column(Integer, primary_key=True)
-    codigo = Column(String(40), unique=True, nullable=False)
+    parte_norma = Column(SmallInteger, nullable=False, default=1)
+    codigo = Column(String(40), nullable=False)
     nombre = Column(String(100), nullable=False)
     obligatoria = Column(Boolean, nullable=False, default=True)
     orden = Column(Integer, nullable=False, default=0)
@@ -199,6 +226,7 @@ class CotizacionEquipo(Base):
     id_cotizacion_equipo = Column(Integer, primary_key=True)
     id_cotizacion = Column(Integer, ForeignKey("cotizacion.id_cotizacion"), nullable=False)
     id_equipo = Column(Integer, ForeignKey("equipo.id_equipo"), nullable=False)
+    id_norma = Column(Integer, ForeignKey("norma.id_norma"), nullable=False)
     codigo_servicio = Column(String(25), unique=True, nullable=False)
     tipo_servicio = Column(String(30), nullable=False, default="INSPECCION_PERIODICA")
     descripcion = Column(String(255))
@@ -209,9 +237,12 @@ class CotizacionEquipo(Base):
     fecha_limite_correccion = Column(Date)
     fecha_solicitud_visita2 = Column(DateTime)
     id_usuario_solicitud_visita2 = Column(Integer, ForeignKey("usuario.id_usuario"))
+    id_servicio_anterior = Column(Integer, ForeignKey("cotizacion_equipo.id_cotizacion_equipo"))
 
     cotizacion = relationship("Cotizacion", back_populates="equipos")
     equipo = relationship("Equipo")
+    norma = relationship("Norma", lazy="joined")
+    servicio_anterior = relationship("CotizacionEquipo", remote_side=[id_cotizacion_equipo])
 
 
 class HistorialEstado(Base):
@@ -259,15 +290,15 @@ class Programacion(Base):
 
 
 # ============================================
-# CHECKLIST
+# CHECKLIST (uno por norma)
 # ============================================
 class ChecklistCategoria(Base):
     __tablename__ = "checklist_categoria"
     id_categoria = Column(Integer, primary_key=True)
-    codigo = Column(String(20), unique=True, nullable=False)
+    id_norma = Column(Integer, ForeignKey("norma.id_norma"), nullable=False)
+    codigo = Column(String(20), nullable=False)
     nombre = Column(String(150), nullable=False)
     descripcion = Column(String(500))
-    norma = Column(String(40), nullable=False)
     numeral_norma = Column(String(40))
     orden = Column(Integer, nullable=False, default=0)
     activo = Column(Boolean, nullable=False, default=True)
@@ -276,9 +307,10 @@ class ChecklistCategoria(Base):
 class ChecklistItem(Base):
     __tablename__ = "checklist_item"
     id_item = Column(Integer, primary_key=True)
+    id_norma = Column(Integer, ForeignKey("norma.id_norma"), nullable=False)
     id_categoria = Column(Integer, ForeignKey("checklist_categoria.id_categoria"), nullable=False)
-    numero = Column(Integer, unique=True, nullable=False)
-    codigo = Column(String(20), unique=True, nullable=False)
+    numero = Column(Integer, nullable=False)
+    codigo = Column(String(20), nullable=False)
     numeral_norma = Column(String(40))
     descripcion = Column(Text, nullable=False)
     criterio_cumplimiento = Column(Text)
@@ -295,15 +327,14 @@ class ChecklistItem(Base):
 
 
 # ============================================
-# INSPECCIÓN
+# INSPECCIÓN (primera visita y, si aplica, segunda visita)
 # ============================================
 class Inspeccion(Base):
     __tablename__ = "inspeccion"
     id_inspeccion = Column(Integer, primary_key=True)
     numero_inspeccion = Column(String(20), unique=True, nullable=False)
     id_cotizacion_equipo = Column(Integer, ForeignKey("cotizacion_equipo.id_cotizacion_equipo"), nullable=False)
-    id_programacion = Column(Integer, ForeignKey("programacion.id_programacion"), nullable=False)
-    id_inspector = Column(Integer, ForeignKey("usuario.id_usuario"), nullable=False)
+    id_norma = Column(Integer, ForeignKey("norma.id_norma"), nullable=False)
     uuid_offline = Column(String(36), unique=True)
     datos_equipo_json = Column(Text)
     conservacion_informacion = Column(String(10), nullable=False, default="DIGITAL")
@@ -318,29 +349,44 @@ class Inspeccion(Base):
     numero_paradas = Column(Integer)
     profundidad_foso_mm = Column(Integer)
     recorrido_m = Column(Numeric(8, 2))
+    id_programacion = Column(Integer, ForeignKey("programacion.id_programacion"), nullable=False)
+    id_inspector = Column(Integer, ForeignKey("usuario.id_usuario"), nullable=False)
     fecha_inicio = Column(DateTime, nullable=False)
     fecha_fin = Column(DateTime)
     id_programacion_visita2 = Column(Integer, ForeignKey("programacion.id_programacion"))
     id_inspector_visita2 = Column(Integer, ForeignKey("usuario.id_usuario"))
-    fecha_visita2 = Column(DateTime)
+    fecha_inicio_visita2 = Column(DateTime)
+    fecha_fin_visita2 = Column(DateTime)
     estado = Column(String(20), nullable=False, default="EN_CURSO")
     observaciones_generales = Column(Text)
     latitud = Column(Numeric(10, 8))
     longitud = Column(Numeric(11, 8))
-    sincronizada = Column(Boolean, nullable=False, default=True)
     fecha_sincronizacion = Column(DateTime)
     fecha_creacion = Column(DateTime, server_default=func.now())
 
     cotizacion_equipo = relationship("CotizacionEquipo")
+    norma = relationship("Norma")
     programacion = relationship("Programacion", foreign_keys=[id_programacion])
+    programacion_visita2 = relationship("Programacion", foreign_keys=[id_programacion_visita2])
     inspector = relationship("Usuario", foreign_keys=[id_inspector])
+    inspector_visita2 = relationship("Usuario", foreign_keys=[id_inspector_visita2])
     variantes = relationship("InspeccionVariante", cascade="all, delete-orphan")
     resultados = relationship("InspeccionResultado", cascade="all, delete-orphan")
     fotos = relationship("InspeccionFoto", cascade="all, delete-orphan", order_by="InspeccionFoto.orden")
     firmas = relationship("InspeccionFirma", cascade="all, delete-orphan")
     mediciones = relationship("InspeccionMedicion", cascade="all, delete-orphan")
     instrumentos = relationship("InspeccionInstrumento", cascade="all, delete-orphan")
-    informe = relationship("Informe", uselist=False, back_populates="inspeccion")
+    informes = relationship("Informe", back_populates="inspeccion", order_by="Informe.numero_visita")
+
+    @property
+    def visita_actual(self) -> int:
+        """1 mientras no se haya abierto la segunda visita; 2 después (no existe una tercera)."""
+        return 2 if self.id_programacion_visita2 else 1
+
+    def informe(self, numero_visita: int | None = None):
+        """Informe de la visita indicada (por defecto, el de la visita actual)."""
+        n = numero_visita or self.visita_actual
+        return next((i for i in self.informes if i.numero_visita == n), None)
 
 
 class InspeccionVariante(Base):
@@ -367,6 +413,7 @@ class InspeccionResultado(Base):
     hallazgo_director = Column(Boolean, nullable=False, default=False)
     estado_segunda_visita = Column(String(15))
     observacion_segunda_visita = Column(Text)
+    modificado_en_cliente = Column(DateTime)
 
     item = relationship("ChecklistItem")
 
@@ -375,6 +422,7 @@ class InspeccionFoto(Base):
     __tablename__ = "inspeccion_foto"
     id_foto = Column(Integer, primary_key=True)
     id_inspeccion = Column(Integer, ForeignKey("inspeccion.id_inspeccion"), nullable=False)
+    numero_visita = Column(SmallInteger, nullable=False, default=1)
     id_resultado = Column(Integer, ForeignKey("inspeccion_resultado.id_resultado"))
     uuid_offline = Column(String(36), unique=True)
     nombre_archivo = Column(String(255), nullable=False)
@@ -398,6 +446,7 @@ class InspeccionFirma(Base):
     numero_visita = Column(SmallInteger, nullable=False, default=1)
     tipo_firmante = Column(String(30), nullable=False)
     id_usuario = Column(Integer, ForeignKey("usuario.id_usuario"))
+    uuid_offline = Column(String(36), unique=True)
     nombre = Column(String(150), nullable=False)
     documento = Column(String(30))
     cargo = Column(String(100))
@@ -440,33 +489,27 @@ class InspeccionMedicion(Base):
 
 
 # ============================================
-# INFORME Y CERTIFICADO
+# INFORME (uno por visita) Y CERTIFICADO
 # ============================================
 class Informe(Base):
+    """Un informe por visita: numero_visita 1 (primera) o 2 (segunda / cierre de hallazgos)."""
     __tablename__ = "informe"
     id_informe = Column(Integer, primary_key=True)
-    numero_informe = Column(String(20), unique=True, nullable=False)
-    id_inspeccion = Column(Integer, ForeignKey("inspeccion.id_inspeccion"), unique=True, nullable=False)
+    numero_informe = Column(String(25), unique=True, nullable=False)
+    id_inspeccion = Column(Integer, ForeignKey("inspeccion.id_inspeccion"), nullable=False)
+    numero_visita = Column(SmallInteger, nullable=False)
     id_director = Column(Integer, ForeignKey("usuario.id_usuario"))
     estado = Column(String(20), nullable=False, default="PENDIENTE_REVISION")
     concepto = Column(String(15))
     atestacion = Column(Text)
     observaciones_revision = Column(Text)
     ruta_firma_director = Column(String(500))
-    visita_actual = Column(SmallInteger, nullable=False, default=1)
-    concepto_visita1 = Column(String(15))
-    fecha_aprobacion_visita1 = Column(DateTime)
-    ruta_pdf_visita1 = Column(String(500))
-    hash_visita1 = Column(String(64))
-    ruta_firma_director_v1 = Column(String(500))
-    plazo_dias = Column(Integer)
-    fecha_limite_correccion = Column(Date)
-    total_corregidos = Column(Integer, nullable=False, default=0)
-    total_no_corregidos = Column(Integer, nullable=False, default=0)
     total_leves = Column(Integer, nullable=False, default=0)
     total_graves = Column(Integer, nullable=False, default=0)
     total_muy_graves = Column(Integer, nullable=False, default=0)
     total_no_aplica = Column(Integer, nullable=False, default=0)
+    total_corregidos = Column(Integer, nullable=False, default=0)
+    total_no_corregidos = Column(Integer, nullable=False, default=0)
     fecha_revision = Column(DateTime)
     fecha_aprobacion = Column(DateTime)
     ruta_pdf = Column(String(500))
@@ -475,7 +518,7 @@ class Informe(Base):
     fecha_envio_certificados = Column(DateTime)
     fecha_creacion = Column(DateTime, server_default=func.now())
 
-    inspeccion = relationship("Inspeccion", back_populates="informe")
+    inspeccion = relationship("Inspeccion", back_populates="informes")
     director = relationship("Usuario", foreign_keys=[id_director])
     certificado = relationship("Certificado", uselist=False, back_populates="informe")
 
