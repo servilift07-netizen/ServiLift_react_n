@@ -1,6 +1,9 @@
 # app/security.py
 # Contraseñas (bcrypt), tokens JWT y control de acceso por rol.
 
+import hashlib
+import hmac
+import time
 from datetime import datetime, timedelta, timezone
 
 import bcrypt
@@ -96,3 +99,27 @@ def leer_enlace_descarga(token: str) -> tuple[str, str]:
     if datos.get("uso") != "descarga":
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Enlace inválido")
     return datos["archivo"], datos["nombre"]
+
+
+# ============================================
+# FOTOS Y FIRMAS: enlaces firmados (HMAC) que vencen.
+# Ya no existe una carpeta pública: sin firma válida el archivo no se entrega.
+# La vigencia se redondea a la hora para que la misma foto conserve la misma URL un rato
+# (así el celular la aprovecha desde su caché).
+# ============================================
+def _firma_archivo(ruta: str, vence: int) -> str:
+    msg = f"{ruta}|{vence}".encode("utf-8")
+    return hmac.new(settings.SECRET_KEY.encode("utf-8"), msg, hashlib.sha256).hexdigest()[:32]
+
+
+def url_archivo(ruta_relativa: str | None) -> str | None:
+    if not ruta_relativa:
+        return None
+    ahora_s = int(time.time())
+    vence = (ahora_s + settings.ARCHIVOS_URL_MINUTOS * 60) // 3600 * 3600 + 3600
+    return f"/archivos/{ruta_relativa}?v={vence}&f={_firma_archivo(ruta_relativa, vence)}"
+
+
+def validar_url_archivo(ruta_relativa: str, vence: int, firma: str):
+    if vence < int(time.time()) or not hmac.compare_digest(firma, _firma_archivo(ruta_relativa, vence)):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Enlace vencido o inválido")

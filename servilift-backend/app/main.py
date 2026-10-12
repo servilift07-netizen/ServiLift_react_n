@@ -4,22 +4,25 @@
 
 import os
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from app.config import settings
 from app.routes import (
     auth, catalogos, certificados, clientes, cotizaciones, dashboard, informes, inspecciones, programacion, seguimiento,
     usuarios,
 )
+from app.security import validar_url_archivo
 
-app = FastAPI(title="ServiLift API", version="0.1.0",
-              description="Gestión de certificación de ascensores NTC 5926-1: de la cotización al certificado.")
+app = FastAPI(title="ServiLift API", version="2.0.0",
+              description="Gestión de certificación de ascensores NTC 5926: de la cotización al certificado.")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",  # Flutter web en desarrollo
+    # Desarrollo: app web de Expo (localhost:8081) y cualquier puerto local. Producción: CORS_ORIGINS en .env
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -29,12 +32,20 @@ for r in (auth, usuarios, clientes, cotizaciones, programacion, inspecciones, in
           seguimiento, catalogos, dashboard):
     app.include_router(r.router)
 
-# Fotos y firmas (nombres aleatorios). Los PDF se descargan por los endpoints con permisos.
-os.makedirs(os.path.join(settings.STORAGE_DIR, "inspecciones"), exist_ok=True)
-app.mount("/archivos/inspecciones", StaticFiles(directory=os.path.join(settings.STORAGE_DIR, "inspecciones")),
-          name="archivos")
+# Solo se sirven fotos y firmas (nunca PDF ni otros archivos) y siempre con enlace firmado vigente
+CARPETAS_SERVIDAS = ("inspecciones/", "informes/firmas/", "firmas/usuarios/")
+
+
+@app.get("/archivos/{ruta:path}", include_in_schema=False)
+def archivo(ruta: str, v: int, f: str):
+    validar_url_archivo(ruta, v, f)
+    base = os.path.realpath(settings.STORAGE_DIR)
+    destino = os.path.realpath(os.path.join(base, ruta))
+    if not ruta.startswith(CARPETAS_SERVIDAS) or not destino.startswith(base + os.sep) or not os.path.isfile(destino):
+        raise HTTPException(404, "Archivo no encontrado")
+    return FileResponse(destino, headers={"Cache-Control": "private, max-age=3600"})
 
 
 @app.get("/")
 def root():
-    return {"message": "ServiLift API funcionando"}
+    return {"message": "ServiLift API funcionando", "version": app.version}
