@@ -9,7 +9,7 @@ from collections import Counter
 from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -21,13 +21,15 @@ from app.security import (
     ADMIN, ASESOR, CERTIFICADOS, CLIENTE, DIRECTOR_TECNICO, INSPECTOR, PROGRAMACION, get_current_user,
 )
 from app.services.flujo import ETIQUETAS_ESTADO
+from app.tiempo import hoy as fecha_hoy
 
 router = APIRouter(tags=["Inicio"])
 
 COLOR_ESTADO = {
     "PENDIENTE_APROBACION": "alerta", "APROBADO_CLIENTE": "exito", "POR_PROGRAMAR": "alerta", "PROGRAMADO": "info",
     "EN_INSPECCION": "info", "EN_REVISION": "alerta", "NO_CONFORME": "error", "SEGUNDA_VISITA_SOLICITADA": "alerta",
-    "INFORME_APROBADO": "exito", "CERTIFICADO_LISTO": "exito", "RECHAZADO": "gris", "ANULADO": "gris",
+    "INFORME_APROBADO": "exito", "CERTIFICADO_LISTO": "exito", "CERRADO_NO_CONFORME": "error",
+    "RECHAZADO": "gris", "ANULADO": "gris",
 }
 MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
 
@@ -41,7 +43,7 @@ def _moneda(v) -> str:
 
 
 def _ultimos_meses(n=6):
-    hoy = date.today().replace(day=1)
+    hoy = fecha_hoy().replace(day=1)
     meses = []
     for i in range(n - 1, -1, -1):
         m = hoy.month - 1 - i
@@ -61,7 +63,7 @@ def _equipos_por_estado(q):
 
 
 def _inicio_mes():
-    return datetime.combine(date.today().replace(day=1), datetime.min.time())
+    return datetime.combine(fecha_hoy().replace(day=1), datetime.min.time())
 
 
 def _hallazgos_por_calificacion(db, filtro_insp=None):
@@ -131,19 +133,22 @@ def _asesor(db: Session, u: Usuario, admin=False):
 def _cliente(db: Session, u: Usuario):
     equipos = (db.query(CotizacionEquipo).join(Cotizacion)
                .filter(Cotizacion.id_cliente == u.id_cliente, Cotizacion.estado != "BORRADOR").all())
-    hoy = date.today()
+    hoy = fecha_hoy()
     certs = (db.query(Certificado).join(CotizacionEquipo).join(Cotizacion)
              .filter(Cotizacion.id_cliente == u.id_cliente, Certificado.estado == "ENVIADO_CLIENTE").all())
     vigentes = [c for c in certs if c.fecha_vencimiento and c.fecha_vencimiento >= hoy]
     por_vencer = [c for c in vigentes if c.fecha_vencimiento <= hoy + timedelta(days=60)]
     por_aprobar = (db.query(Cotizacion).filter(Cotizacion.id_cliente == u.id_cliente, Cotizacion.estado == "ENVIADA_CLIENTE").all())
     no_conf = [e for e in equipos if e.estado == "NO_CONFORME"]
+    cerrados_nc = [e for e in equipos if e.estado == "CERRADO_NO_CONFORME"]
     return {
         "kpis": [
             _kpi("Equipos en proceso", sum(1 for e in equipos if e.estado not in ("CERTIFICADO_LISTO", "RECHAZADO", "ANULADO")), color="info"),
             _kpi("Certificados vigentes", len(vigentes), f"{len(por_vencer)} vencen en 60 días", "exito"),
             _kpi("Cotizaciones por aprobar", len(por_aprobar), color="alerta" if por_aprobar else "gris"),
             _kpi("Pendientes de 2ª visita", len(no_conf), "Solicítela antes del plazo", "error" if no_conf else "gris"),
+            _kpi("Requieren cotización nueva", len(cerrados_nc), "No conformes en 2ª visita",
+                 "error" if cerrados_nc else "gris"),
         ],
         "graficas": [
             {"titulo": "Mis equipos por estado", "tipo": "dona", "datos": _equipos_por_estado(equipos)},
@@ -156,6 +161,10 @@ def _cliente(db: Session, u: Usuario):
              "items": [{"texto": f"{e.equipo.identificacion} · {e.cotizacion.edificio.nombre}",
                         "subtexto": f"Plazo hasta {e.fecha_limite_correccion:%d/%m/%Y}" if e.fecha_limite_correccion else e.codigo_servicio,
                         "estado": e.estado, "id_cotizacion": e.id_cotizacion} for e in no_conf]},
+            {"titulo": "No conformes en 2ª visita: requieren cotización nueva",
+             "items": [{"texto": f"{e.equipo.identificacion} · {e.cotizacion.edificio.nombre}",
+                        "subtexto": e.codigo_servicio, "estado": e.estado, "id_cotizacion": e.id_cotizacion}
+                       for e in cerrados_nc]},
             {"titulo": "Certificados por vencer (60 días)",
              "items": [{"texto": f"{c.numero_certificado} · {c.cotizacion_equipo.equipo.identificacion}",
                         "subtexto": f"Vence {c.fecha_vencimiento:%d/%m/%Y}", "estado": "NO_CONFORME"} for c in por_vencer]},
@@ -164,7 +173,7 @@ def _cliente(db: Session, u: Usuario):
 
 
 def _programacion(db: Session, u: Usuario):
-    hoy = date.today()
+    hoy = fecha_hoy()
     por_prog = db.query(CotizacionEquipo).filter(CotizacionEquipo.estado == "POR_PROGRAMAR").count()
     segunda = db.query(CotizacionEquipo).filter(CotizacionEquipo.estado == "SEGUNDA_VISITA_SOLICITADA").all()
     urgentes = [e for e in segunda if e.fecha_limite_correccion and e.fecha_limite_correccion <= hoy + timedelta(days=3)]
@@ -199,13 +208,14 @@ def _programacion(db: Session, u: Usuario):
 
 
 def _inspector(db: Session, u: Usuario):
-    hoy = date.today()
-    mias = db.query(Inspeccion).filter(Inspeccion.id_inspector == u.id_usuario).all()
+    hoy = fecha_hoy()
+    mias = db.query(Inspeccion).filter(or_(Inspeccion.id_inspector == u.id_usuario,
+                                           Inspeccion.id_inspector_visita2 == u.id_usuario)).all()
     visitas = db.query(Programacion).filter(Programacion.id_inspector == u.id_usuario, Programacion.estado != "CANCELADA").all()
     hoy_v = [p for p in visitas if p.fecha_programada == hoy]
     proximas = [p for p in visitas if hoy <= p.fecha_programada <= hoy + timedelta(days=7) and p.estado != "REALIZADA"]
     devueltas = [i for i in mias if i.estado == "DEVUELTA"]
-    mes = [i for i in mias if i.fecha_fin and i.fecha_fin >= _inicio_mes()]
+    mes = [i for i in mias if (i.fecha_fin_visita2 or i.fecha_fin) and (i.fecha_fin_visita2 or i.fecha_fin) >= _inicio_mes()]
     return {
         "kpis": [
             _kpi("Visitas hoy", len(hoy_v), color="info"),
@@ -227,7 +237,7 @@ def _inspector(db: Session, u: Usuario):
                         "estado": "PROGRAMADO"} for p in sorted(proximas, key=lambda p: (p.fecha_programada, p.hora_inicio))[:8]]},
             {"titulo": "Devueltas por el director",
              "items": [{"texto": f"{i.numero_inspeccion} · {i.cotizacion_equipo.equipo.identificacion}",
-                        "subtexto": (i.informe.observaciones_revision or "") if i.informe else "",
+                        "subtexto": (i.informe().observaciones_revision or "") if i.informe() else "",
                         "estado": "DEVUELTO"} for i in devueltas]},
         ],
     }
@@ -239,11 +249,14 @@ def _director(db: Session, u: Usuario):
     aprob = [i for i in informes if i.estado == "APROBADO"]
     mes = [i for i in aprob if i.fecha_aprobacion and i.fecha_aprobacion >= _inicio_mes()]
     conformes = sum(1 for i in aprob if i.concepto == "CONFORME")
-    tiempos = [(i.fecha_revision - i.inspeccion.fecha_fin).total_seconds() / 3600 for i in aprob
-               if i.fecha_revision and i.inspeccion.fecha_fin]
+    def _fin_visita(i):
+        return i.inspeccion.fecha_fin_visita2 if i.numero_visita == 2 else i.inspeccion.fecha_fin
+
+    tiempos = [(i.fecha_revision - _fin_visita(i)).total_seconds() / 3600 for i in aprob
+               if i.fecha_revision and _fin_visita(i)]
     return {
         "kpis": [
-            _kpi("Informes por revisar", len(pend), f"{sum(1 for i in pend if i.visita_actual == 2)} de 2ª visita",
+            _kpi("Informes por revisar", len(pend), f"{sum(1 for i in pend if i.numero_visita == 2)} de 2ª visita",
                  "alerta" if pend else "gris"),
             _kpi("Aprobados este mes", len(mes), color="exito"),
             _kpi("Conformes", f"{round(100 * conformes / len(aprob)) if aprob else 0}%", f"{conformes} de {len(aprob)} aprobados", "exito"),
@@ -262,14 +275,14 @@ def _director(db: Session, u: Usuario):
             {"titulo": "Por revisar",
              "items": [{"texto": f"{i.numero_informe} · {i.inspeccion.cotizacion_equipo.cotizacion.edificio.nombre}",
                         "subtexto": f"{i.inspeccion.cotizacion_equipo.equipo.identificacion} · {i.inspeccion.inspector.nombre_completo}"
-                                    + (" · 2ª visita" if i.visita_actual == 2 else ""),
+                                    + (" · 2ª visita" if i.numero_visita == 2 else ""),
                         "estado": "PENDIENTE_REVISION", "id_informe": i.id_informe} for i in pend[:8]]},
         ],
     }
 
 
 def _certificados(db: Session, u: Usuario):
-    hoy = date.today()
+    hoy = fecha_hoy()
     pendientes = (db.query(Informe).outerjoin(Certificado)
                   .filter(Informe.estado == "APROBADO", Informe.concepto == "CONFORME", Certificado.id_certificado.is_(None)).count())
     certs = db.query(Certificado).filter(Certificado.estado != "ANULADO").all()
