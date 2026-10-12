@@ -27,7 +27,14 @@ export interface Carga<T> {
 
 export function useCarga<T>(cargar: () => Promise<T>, deps: DependencyList, opciones: Opciones = {}): Carga<T> {
   const { intervalo = REFRESCO_MS, cache = null } = opciones;
-  const [datos, setDatos] = useState<T | undefined>(undefined);
+  const [datos, setDatosEstado] = useState<{ clave: string; valor: T } | undefined>(undefined);
+  // Los datos se marcan con la búsqueda que los produjo: al cambiar de filtro nunca se ven los de la anterior
+  const claveDeps = JSON.stringify(deps);
+  const claveActual = useRef(claveDeps);
+  claveActual.current = claveDeps;
+  const setDatos = useCallback((v: T | undefined, clave = claveActual.current) => {
+    setDatosEstado(v === undefined ? undefined : { clave, valor: v });
+  }, []);
   const [error, setError] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
   const [desdeCache, setDesdeCache] = useState(false);
@@ -35,18 +42,19 @@ export function useCarga<T>(cargar: () => Promise<T>, deps: DependencyList, opci
   const fn = useRef(cargar);
   fn.current = cargar;
   const tieneDatos = useRef(false);
-  const ocupado = useRef(false);
+  const ocupado = useRef<string | null>(null); // clave de la carga en curso
   const vivo = useRef(true);
 
   const recargar = useCallback(async () => {
-    if (ocupado.current) return;
-    ocupado.current = true;
+    const clave = claveActual.current;
+    if (ocupado.current === clave) return;
+    ocupado.current = clave;
     if (!tieneDatos.current) setError(null);
     try {
       const d = await fn.current();
-      if (!vivo.current) return;
+      if (!vivo.current || clave !== claveActual.current) return;
       tieneDatos.current = true;
-      setDatos(d);
+      setDatos(d, clave);
       setError(null);
       setDesdeCache(false);
       if (cache) {
@@ -55,15 +63,15 @@ export function useCarga<T>(cargar: () => Promise<T>, deps: DependencyList, opci
       }
     } catch (e) {
       // Si ya hay datos visibles se conservan (por ejemplo, sin señal por un momento)
-      if (vivo.current) {
+      if (vivo.current && clave === claveActual.current) {
         if (tieneDatos.current) setDesdeCache(true);
         else setError(e instanceof ApiError ? e.toString() : String(e));
       }
     } finally {
-      ocupado.current = false;
-      if (vivo.current) setCargando(false);
+      if (ocupado.current === clave) ocupado.current = null;
+      if (vivo.current && clave === claveActual.current) setCargando(false);
     }
-  }, [cache]);
+  }, [cache, setDatos]);
 
   useEffect(() => {
     vivo.current = true;
@@ -76,7 +84,7 @@ export function useCarga<T>(cargar: () => Promise<T>, deps: DependencyList, opci
         const g = await leerCache<T>(cache);
         if (g && !cancelado && !tieneDatos.current) {
           tieneDatos.current = true;
-          setDatos(g.datos);
+          setDatos(g.datos, claveDeps);
           setGuardadoEn(g.guardadoEn);
           setDesdeCache(true);
           setCargando(false);
@@ -100,13 +108,14 @@ export function useCarga<T>(cargar: () => Promise<T>, deps: DependencyList, opci
   }, [intervalo, recargar]);
 
   const fijar = useCallback((cambio: (d: T) => T) => {
-    setDatos((d) => {
+    setDatosEstado((d) => {
       if (d === undefined) return d;
-      const nuevo = cambio(d);
+      const nuevo = cambio(d.valor);
       if (cache) void guardarCache(cache, nuevo);
-      return nuevo;
+      return { clave: d.clave, valor: nuevo };
     });
   }, [cache]);
 
-  return { datos, error, cargando, desdeCache, guardadoEn, recargar, fijar };
+  const vigentes = datos && datos.clave === claveDeps ? datos.valor : undefined;
+  return { datos: vigentes, error, cargando, desdeCache, guardadoEn, recargar, fijar };
 }
