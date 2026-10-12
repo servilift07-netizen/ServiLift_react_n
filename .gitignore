@@ -23,5 +23,3 @@ database/servilift_db_*.sql
 .idea/
 .DS_Store
 Thumbs.db
-# Herramientas locales
-.claude/
