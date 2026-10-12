@@ -35,12 +35,6 @@
           "photosPermission": "ServiLift usa sus fotos para el registro fotográfico de la inspección.",
           "cameraPermission": "ServiLift usa la cámara para tomar las fotos de la inspección."
         }
-      ],
-      [
-        "expo-location",
-        {
-          "locationWhenInUsePermission": "ServiLift registra la ubicación de la inspección."
-        }
       ]
     ],
     "experiments": {
