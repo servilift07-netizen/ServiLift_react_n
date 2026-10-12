@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Api } from '@/api/cliente';
 import { Icon, Icono } from '@/componentes/Comunes';
 import { useDialogos } from '@/componentes/Dialogos';
+import { volver } from '@/navegacion';
 import { useSincronizacion } from '@/offline/SincronizacionContext';
 import { Rol, useSesion } from '@/sesion/SesionContext';
 import { aclarar, Colores } from '@/tema';
@@ -164,7 +165,7 @@ function Encabezado({ titulo, puedeVolver }: { titulo: string; puedeVolver: bool
   return (
     <Appbar.Header style={{ backgroundColor: Colores.navy, height: 56 + ins.top, paddingTop: ins.top }} statusBarHeight={0}>
       {puedeVolver
-        ? <Appbar.BackAction color="#fff" onPress={() => router.back()} />
+        ? <Appbar.BackAction color="#fff" onPress={() => volver()} />
         : !ancho && <Appbar.Action icon="menu" color="#fff" onPress={abrir} />}
       <Appbar.Content title={titulo} titleStyle={{ color: '#fff', fontSize: 18, fontWeight: '600' }} />
       <EstadoSincronizacion />

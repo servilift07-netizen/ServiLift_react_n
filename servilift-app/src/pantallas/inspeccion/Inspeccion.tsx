@@ -12,6 +12,7 @@ import { useDialogos } from '@/componentes/Dialogos';
 import { BotonHistorial } from '@/componentes/Historial';
 import { Segmentos } from '@/componentes/Segmentos';
 import { useCarga } from '@/hooks/useCarga';
+import { volver } from '@/navegacion';
 import { useSincronizacion } from '@/offline/SincronizacionContext';
 import { Rol, useSesion } from '@/sesion/SesionContext';
 import { aclarar, Colores, etiqueta } from '@/tema';
@@ -70,7 +71,7 @@ export default function Inspeccion() {
     if (!(await d.confirmar(`Finalizar ${segunda ? 'segunda visita' : 'inspección'}`,
       'El informe pasará al director técnico para su revisión y atestación. No podrá modificarlo después.', 'Finalizar'))) return;
     if (await d.ejecutar(() => Api.post(`/inspecciones/${id}/finalizar`), { exito: 'Enviado al director técnico' })) {
-      router.back();
+      volver('/agenda');
     }
   };
 

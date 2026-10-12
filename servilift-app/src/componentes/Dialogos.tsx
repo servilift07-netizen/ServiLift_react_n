@@ -62,7 +62,8 @@ const Contexto = createContext<Api | null>(null);
 
 export function DialogosProvider({ children }: { children: ReactNode }) {
   const [activo, setActivo] = useState<Activo | null>(null);
-  const [snack, setSnack] = useState<{ texto: string; error: boolean } | null>(null);
+  // El texto se conserva al cerrar para que no se vea vacío durante la animación de salida
+  const [snack, setSnack] = useState<{ texto: string; error: boolean; visible: boolean }>({ texto: '', error: false, visible: false });
   const cola = useRef<Activo[]>([]);
 
   const abrir = useCallback((d: Activo) => {
@@ -79,7 +80,7 @@ export function DialogosProvider({ children }: { children: ReactNode }) {
     setActivo(cola.current.shift() ?? null);
   }, []);
 
-  const mensaje = useCallback((texto: string, error = false) => setSnack({ texto, error }), []);
+  const mensaje = useCallback((texto: string, error = false) => setSnack({ texto, error, visible: true }), []);
 
   const alerta = useCallback((titulo: string, texto: string) =>
     new Promise<void>((resolver) => abrir({ tipo: 'alerta', titulo, texto, resolver })), [abrir]);
@@ -127,13 +128,14 @@ export function DialogosProvider({ children }: { children: ReactNode }) {
       <Portal>
         {activo && <DialogoActivo d={activo} cerrar={cerrar} ejecutar={ejecutar} />}
         <Snackbar
-          visible={!!snack}
-          onDismiss={() => setSnack(null)}
-          duration={snack?.error ? 6000 : 3000}
-          style={{ backgroundColor: snack?.error ? Colores.error : Colores.navy }}
-          action={{ label: 'OK', textColor: '#fff', onPress: () => setSnack(null) }}
+          visible={snack.visible}
+          onDismiss={() => setSnack((x) => ({ ...x, visible: false }))}
+          duration={snack.error ? 6000 : 3000}
+          wrapperStyle={{ bottom: 76 }}
+          style={{ backgroundColor: snack.error ? Colores.error : Colores.navy, maxWidth: 600, alignSelf: 'center' }}
+          action={{ label: 'OK', textColor: '#fff', onPress: () => setSnack((x) => ({ ...x, visible: false })) }}
         >
-          {snack?.texto}
+          <Text style={{ color: '#fff' }}>{snack.texto}</Text>
         </Snackbar>
       </Portal>
     </Contexto.Provider>

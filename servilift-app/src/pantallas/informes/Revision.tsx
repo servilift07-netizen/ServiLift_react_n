@@ -1,7 +1,7 @@
 // Revisión y atestación de un informe (1ª o 2ª visita): resumen, checklist, fotos; devolver o aprobar con firma.
 // 1ª visita: conforme -> certificados; no conforme -> plazo y 2ª visita.
 // 2ª visita: conforme solo si todo quedó corregido; si no, el equipo requiere cotización nueva.
-import { router, Stack, useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Image, ScrollView, View } from 'react-native';
 import { Button, Chip, Text, TextInput } from 'react-native-paper';
@@ -14,6 +14,7 @@ import { useDialogos } from '@/componentes/Dialogos';
 import { BotonHistorial } from '@/componentes/Historial';
 import { Segmentos } from '@/componentes/Segmentos';
 import { useCarga } from '@/hooks/useCarga';
+import { volver } from '@/navegacion';
 import { Colores, etiqueta, fecha, fechaHora } from '@/tema';
 import ChecklistTab from '../inspeccion/ChecklistTab';
 import FotosTab from '../inspeccion/FotosTab';
@@ -38,7 +39,7 @@ export default function Revision() {
   const devolver = async () => {
     const obs = await d.pedirTexto('Devolver al inspector', { etiqueta: 'Qué debe corregir' });
     if (obs && await d.ejecutar(() => Api.post(`/informes/${id}/devolver`, { observaciones: obs }), { exito: 'Informe devuelto al inspector' })) {
-      router.back();
+      volver('/informes');
     }
   };
 
@@ -62,7 +63,7 @@ export default function Revision() {
           </Button>
         </View>
       )}
-      {aprobando && <Aprobar inf={i} cerrar={(ok) => { setAprobando(false); if (ok) router.back(); }} />}
+      {aprobando && <Aprobar inf={i} cerrar={(ok) => { setAprobando(false); if (ok) volver('/informes'); }} />}
     </View>
   );
 }
