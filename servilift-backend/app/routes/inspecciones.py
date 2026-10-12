@@ -120,7 +120,8 @@ class FirmaIn(BaseModel):
     documento: str | None = None
     cargo: str | None = None
     empresa: str | None = None
-    firma_base64: str
+    firma_base64: str | None = None     # imagen PNG/JPG en base64, o
+    dibujo: dict | None = None          # trazos dibujados en la app: {ancho, alto, trazos: [[[x, y], ...], ...]}
     numero_visita: int = 1
     uuid_offline: str | None = None
     fecha_firma: datetime | None = None
@@ -662,7 +663,7 @@ def firmar(id_inspeccion: int, datos: FirmaIn, db: Session = Depends(get_db),
         raise HTTPException(409, f"La inspección está {insp.estado}; no se puede firmar la visita {datos.numero_visita}")
     if datos.tipo_firmante not in TIPOS_FIRMANTE:
         raise HTTPException(400, f"Tipo de firmante inválido: {datos.tipo_firmante}")
-    ruta = archivos.guardar_firma_base64(f"inspecciones/{insp.id_inspeccion}/firmas", datos.firma_base64)
+    ruta = archivos.guardar_firma(f"inspecciones/{insp.id_inspeccion}/firmas", datos.firma_base64, datos.dibujo)
     previa = next((f for f in insp.firmas if f.tipo_firmante == datos.tipo_firmante
                    and f.numero_visita == datos.numero_visita), None)
     if previa:

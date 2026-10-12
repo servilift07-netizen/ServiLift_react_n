@@ -35,7 +35,8 @@ class DevolverIn(BaseModel):
 class AprobarIn(BaseModel):
     atestacion: str | None = None
     concepto: str | None = None          # Solo 1ª visita: CONFORME / NO_CONFORME; si no llega se calcula
-    firma_base64: str | None = None      # si no llega se usa la firma registrada del director
+    firma_base64: str | None = None      # firma como imagen, o
+    dibujo: dict | None = None           # firma como trazos {ancho, alto, trazos}; si no llega ninguna se usa la registrada
     observaciones_revision: str | None = None
 
 
@@ -182,8 +183,9 @@ def aprobar(id_informe: int, datos: AprobarIn, db: Session = Depends(get_db),
     insp = inf.inspeccion
     r = resumen(insp)
 
-    if datos.firma_base64:
-        inf.ruta_firma_director = archivos.guardar_firma_base64(f"informes/firmas/{inf.id_informe}", datos.firma_base64)
+    if datos.firma_base64 or datos.dibujo:
+        inf.ruta_firma_director = archivos.guardar_firma(f"informes/firmas/{inf.id_informe}", datos.firma_base64,
+                                                         datos.dibujo)
     elif usuario.ruta_firma:
         inf.ruta_firma_director = usuario.ruta_firma
     else:

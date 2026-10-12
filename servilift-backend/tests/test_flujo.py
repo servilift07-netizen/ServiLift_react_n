@@ -80,11 +80,17 @@ def subir_foto(H, iid, nombre, id_item=None, descripcion=None, uuid_offline=None
                      data=data), 201)
 
 
+def dibujo():
+    """Firma como trazos, tal como la envía la app (sin generar la imagen en el celular)."""
+    return {"ancho": 300, "alto": 150, "trazos": [[[20, 100], [60, 40], [100, 110], [140, 50]], [[200, 80]]]}
+
+
 def firmar(H, iid, visita):
     for tipo, nombre in FIRMANTES:
+        firma = {"dibujo": dibujo()} if tipo == "REPRESENTANTE_EDIFICIO" else {"firma_base64": png()}
         ok(c.post(f"/inspecciones/{iid}/firmas", headers=H,
-                  json={"tipo_firmante": tipo, "nombre": nombre, "firma_base64": png(), "numero_visita": visita,
-                        "uuid_offline": str(uuid.uuid4())}), 201)
+                  json={"tipo_firmante": tipo, "nombre": nombre, "numero_visita": visita,
+                        "uuid_offline": str(uuid.uuid4()), **firma}), 201)
 
 
 def primera_visita(H, id_prog, id_ce, nc_numeros):
@@ -265,7 +271,7 @@ def main():
     inf2 = segunda_visita(H, cot["id_cotizacion"], yo_inspector["id_usuario"], ids_ce[0], iid, hallazgos)
     assert c.post(f"/informes/{inf2['id_informe']}/aprobar", headers=H["DIRECTOR_TECNICO"],
                   json={"firma_base64": png(), "concepto": "NO_CONFORME"}).status_code == 409   # en 2V lo define el cierre
-    apr2 = ok(c.post(f"/informes/{inf2['id_informe']}/aprobar", headers=H["DIRECTOR_TECNICO"], json={"firma_base64": png()}))
+    apr2 = ok(c.post(f"/informes/{inf2['id_informe']}/aprobar", headers=H["DIRECTOR_TECNICO"], json={"dibujo": dibujo()}))
     assert apr2["concepto"] == "CONFORME" and apr2["total_corregidos"] == 3 and apr2["otro_informe"]["concepto"] == "NO_CONFORME", apr2
     assert ok(c.get(f"/informes/{inf1['id_informe']}", headers=H["CLIENTE"]))["concepto"] == "NO_CONFORME"  # el 1V no cambia
     cert = ok(c.post("/certificados", headers=H["CERTIFICADOS"], json={"id_informe": inf2["id_informe"]}), 201)

@@ -8,7 +8,7 @@ from app.database import get_db
 from app.models import Cliente, Rol, Usuario
 from app.routes.serializers import usuario_dict
 from app.security import ADMIN, CLIENTE, PROGRAMACION, get_current_user, hash_password, require_roles
-from app.services.archivos import guardar_firma_base64
+from app.services.archivos import guardar_firma
 
 router = APIRouter(prefix="/usuarios", tags=["Usuarios"])
 
@@ -41,7 +41,8 @@ class UsuarioUpdate(BaseModel):
 
 
 class FirmaIn(BaseModel):
-    firma_base64: str
+    firma_base64: str | None = None
+    dibujo: dict | None = None
 
 
 def crear_usuario(db: Session, datos: UsuarioIn) -> Usuario:
@@ -113,6 +114,6 @@ def actualizar(id_usuario: int, datos: UsuarioUpdate, db: Session = Depends(get_
 @router.put("/me/firma")
 def registrar_mi_firma(datos: FirmaIn, db: Session = Depends(get_db), usuario: Usuario = Depends(get_current_user)):
     """El director técnico / inspector registra su firma una vez y se reutiliza en los informes."""
-    usuario.ruta_firma = guardar_firma_base64(f"firmas/usuarios/{usuario.id_usuario}", datos.firma_base64)
+    usuario.ruta_firma = guardar_firma(f"firmas/usuarios/{usuario.id_usuario}", datos.firma_base64, datos.dibujo)
     db.commit()
     return {"ok": True}
