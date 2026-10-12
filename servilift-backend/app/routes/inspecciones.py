@@ -1,6 +1,10 @@
 # app/routes/inspecciones.py
 # App móvil del inspector: agenda, abrir informe (datos precargados), variantes,
-# checklist NTC 5926-1, fotos, mediciones, firmas y finalizar.
+# checklist según la norma del servicio, fotos, mediciones, firmas y finalizar.
+#
+# Pensado para trabajar con poca señal: todos los guardados son idempotentes (se pueden reenviar
+# sin duplicar) y los resultados del checklist llevan la hora del celular, de modo que un reenvío
+# viejo nunca pisa un cambio más reciente.
 
 import json
 from datetime import date, datetime
@@ -18,13 +22,14 @@ from app.models import (
     InstrumentoMedicion, Programacion, Usuario, VarianteOpcion,
 )
 from app.routes.serializers import CAMPOS_EDIFICIO, CAMPOS_EQUIPO, cot_equipo_dict, fila, programacion_dict
-from app.security import ADMIN, DIRECTOR_TECNICO, INSPECTOR, get_current_user, require_roles
+from app.security import ADMIN, DIRECTOR_TECNICO, INSPECTOR, get_current_user, require_roles, url_archivo
 from app.services import archivos
 from app.services.checklist import (
     CALIF_CORTA, items_aplicables, pendientes_para_finalizar, pendientes_segunda_visita, precargar_no_aplica,
     resumen,
 )
 from app.services.flujo import cambiar_estado, notificar, siguiente_numero, usuarios_por_rol
+from app.tiempo import a_local, ahora
 
 router = APIRouter(prefix="/inspecciones", tags=["Inspecciones"])
 
@@ -91,12 +96,14 @@ class ResultadoIn(BaseModel):
     valor_medido: str | None = None
     unidad_medida: str | None = None
     observacion: str | None = None
+    modificado_en: datetime | None = None   # hora del celular en que se hizo el cambio
 
 
 class SegundaVisitaIn(BaseModel):
     id_item: int
     estado_segunda_visita: str          # CORREGIDO / NO_CORREGIDO
     observacion_segunda_visita: str | None = None
+    modificado_en: datetime | None = None
 
 
 class FotoUpdate(BaseModel):
@@ -115,6 +122,8 @@ class FirmaIn(BaseModel):
     empresa: str | None = None
     firma_base64: str
     numero_visita: int = 1
+    uuid_offline: str | None = None
+    fecha_firma: datetime | None = None
 
 
 class MedicionIn(BaseModel):
@@ -146,7 +155,9 @@ def _editable(insp: Inspeccion, usuario: Usuario, primera_visita: bool = False):
     estados = ("EN_CURSO", "DEVUELTA") if primera_visita else ("EN_CURSO", "DEVUELTA", "EN_SEGUNDA_VISITA")
     if usuario.rol_codigo == INSPECTOR and insp.estado in estados:
         return
-    if usuario.rol_codigo in (DIRECTOR_TECNICO, ADMIN) and insp.informe and insp.informe.estado == "PENDIENTE_REVISION":
+    inf = insp.informe()
+    if usuario.rol_codigo in (DIRECTOR_TECNICO, ADMIN) and inf and inf.estado == "PENDIENTE_REVISION" \
+            and (not primera_visita or inf.numero_visita == 1):
         return
     raise HTTPException(409, f"La inspección está {insp.estado} y no se puede modificar")
 
@@ -154,24 +165,34 @@ def _editable(insp: Inspeccion, usuario: Usuario, primera_visita: bool = False):
 # ============================================
 # SERIALIZACIÓN
 # ============================================
-def _foto_dict(f: InspeccionFoto):
-    d = fila(f, ["id_foto", "id_resultado", "uuid_offline", "nombre_archivo", "descripcion", "orden",
+def foto_dict(f: InspeccionFoto):
+    d = fila(f, ["id_foto", "id_resultado", "numero_visita", "uuid_offline", "nombre_archivo", "descripcion", "orden",
                  "incluir_en_informe", "revisada", "fecha_captura", "tamano_kb"])
-    d["url"] = f"/archivos/{f.ruta_archivo}"
-    d["url_miniatura"] = f"/archivos/{f.ruta_miniatura or f.ruta_archivo}"
+    d["url"] = url_archivo(f.ruta_archivo)
+    d["url_miniatura"] = url_archivo(f.ruta_miniatura or f.ruta_archivo)
     return d
 
 
+def _informe_corto(inf: Informe | None):
+    if not inf:
+        return None
+    return fila(inf, ["id_informe", "numero_informe", "numero_visita", "estado", "concepto", "observaciones_revision",
+                      "fecha_aprobacion"])
+
+
 def _detalle(db: Session, insp: Inspeccion) -> dict:
-    d = fila(insp, ["id_inspeccion", "numero_inspeccion", "id_cotizacion_equipo", "id_programacion", "id_inspector",
-                    "conservacion_informacion", "tipo_acrilico", "empresa_mantenimiento", "tecnico_mantenimiento",
-                    "fecha_ultimo_mantenimiento", "fecha_puesta_marcha", "fecha_ultima_inspeccion", "capacidad_kg",
-                    "capacidad_personas", "numero_paradas", "profundidad_foso_mm", "recorrido_m", "fecha_inicio",
-                    "fecha_fin", "fecha_visita2", "estado", "observaciones_generales"])
+    d = fila(insp, ["id_inspeccion", "numero_inspeccion", "id_cotizacion_equipo", "id_norma", "id_programacion",
+                    "id_inspector", "conservacion_informacion", "tipo_acrilico", "empresa_mantenimiento",
+                    "tecnico_mantenimiento", "fecha_ultimo_mantenimiento", "fecha_puesta_marcha",
+                    "fecha_ultima_inspeccion", "capacidad_kg", "capacidad_personas", "numero_paradas",
+                    "profundidad_foso_mm", "recorrido_m", "fecha_inicio", "fecha_fin", "id_programacion_visita2",
+                    "id_inspector_visita2", "fecha_inicio_visita2", "fecha_fin_visita2", "estado",
+                    "observaciones_generales", "uuid_offline"])
+    d["norma"] = insp.norma.etiqueta
+    d["parte_norma"] = insp.norma.parte
     d["inspector"] = insp.inspector.nombre_completo
-    d["id_inspector_visita2"] = insp.id_inspector_visita2
-    d["id_programacion_visita2"] = insp.id_programacion_visita2
-    d["numero_visita"] = 2 if insp.id_programacion_visita2 else 1
+    d["inspector_visita2"] = insp.inspector_visita2.nombre_completo if insp.inspector_visita2 else None
+    d["numero_visita"] = insp.visita_actual
     d["datos_equipo"] = json.loads(insp.datos_equipo_json or "{}")
     d["variantes"] = [{"id_variante_tipo": v.id_variante_tipo, "tipo": v.tipo.nombre, "codigo_tipo": v.tipo.codigo,
                        "id_variante_opcion": v.id_variante_opcion, "opcion": v.opcion.nombre,
@@ -179,14 +200,13 @@ def _detalle(db: Session, insp: Inspeccion) -> dict:
     d["resumen"] = resumen(insp)
     d["total_fotos"] = len(insp.fotos)
     d["firmas"] = [fila(f, ["id_firma", "numero_visita", "tipo_firmante", "nombre", "documento", "cargo", "empresa",
-                            "fecha_firma"]) | {"url": f"/archivos/{f.ruta_firma}"} for f in insp.firmas]
+                            "fecha_firma", "uuid_offline"]) | {"url": url_archivo(f.ruta_firma)} for f in insp.firmas]
     d["mediciones"] = [fila(m, ["id_medicion", "id_item", "concepto", "valor", "unidad", "resultado", "detalle"])
                        for m in insp.mediciones]
     d["instrumentos"] = [fila(i.instrumento, ["id_instrumento", "codigo", "tipo", "vence_calibracion"])
                          for i in insp.instrumentos]
-    inf = insp.informe
-    d["informe"] = fila(inf, ["id_informe", "numero_informe", "estado", "concepto", "observaciones_revision",
-                              "visita_actual", "concepto_visita1"]) if inf else None
+    d["informe"] = _informe_corto(insp.informe())            # el de la visita actual
+    d["informes"] = [_informe_corto(i) for i in insp.informes]  # 1ª y, si existe, 2ª visita
     return d
 
 
@@ -197,7 +217,8 @@ def _detalle(db: Session, insp: Inspeccion) -> dict:
 def agenda(desde: date | None = None, db: Session = Depends(get_db),
            usuario: Usuario = Depends(require_roles(INSPECTOR))):
     # Visitas abiertas + las que tienen una inspección devuelta por el director o en segunda visita
-    con_pendientes = {i.id_programacion_visita2 if i.estado == "EN_SEGUNDA_VISITA" else i.id_programacion
+    con_pendientes = {i.id_programacion_visita2 if i.estado == "EN_SEGUNDA_VISITA" or i.id_programacion_visita2
+                      else i.id_programacion
                       for i in db.query(Inspeccion).filter(
                           or_(Inspeccion.id_inspector == usuario.id_usuario,
                               Inspeccion.id_inspector_visita2 == usuario.id_usuario),
@@ -214,7 +235,8 @@ def agenda(desde: date | None = None, db: Session = Depends(get_db),
         for eq in d["equipos"]:
             insp = (db.query(Inspeccion).filter(Inspeccion.id_cotizacion_equipo == eq["id_cotizacion_equipo"])
                     .order_by(Inspeccion.id_inspeccion.desc()).first())
-            eq["inspeccion"] = {"id_inspeccion": insp.id_inspeccion, "estado": insp.estado} if insp else None
+            eq["inspeccion"] = ({"id_inspeccion": insp.id_inspeccion, "estado": insp.estado,
+                                 "numero_visita": insp.visita_actual} if insp else None)
         salida.append(d)
     return salida
 
@@ -224,7 +246,8 @@ def listar(estado: str | None = None, numero_cotizacion: str | None = None, db: 
            usuario: Usuario = Depends(require_roles(INSPECTOR, DIRECTOR_TECNICO))):
     q = db.query(Inspeccion)
     if usuario.rol_codigo == INSPECTOR:
-        q = q.filter(Inspeccion.id_inspector == usuario.id_usuario)
+        q = q.filter(or_(Inspeccion.id_inspector == usuario.id_usuario,
+                         Inspeccion.id_inspector_visita2 == usuario.id_usuario))
     if estado:
         q = q.filter(Inspeccion.estado == estado)
     if numero_cotizacion:
@@ -232,6 +255,7 @@ def listar(estado: str | None = None, numero_cotizacion: str | None = None, db: 
     salida = []
     for i in q.order_by(Inspeccion.id_inspeccion.desc()).all():
         d = fila(i, ["id_inspeccion", "numero_inspeccion", "estado", "fecha_inicio", "fecha_fin"])
+        d["numero_visita"] = i.visita_actual
         d["servicio"] = cot_equipo_dict(i.cotizacion_equipo)
         d["inspector"] = i.inspector.nombre_completo
         salida.append(d)
@@ -255,17 +279,17 @@ def iniciar(datos: IniciarIn, db: Session = Depends(get_db), usuario: Usuario = 
     ce = db.get(CotizacionEquipo, datos.id_cotizacion_equipo)
     if p.tipo_visita == "SEGUNDA":
         return _iniciar_segunda_visita(db, p, ce, usuario)
-    abierta = (db.query(Inspeccion).filter(Inspeccion.id_cotizacion_equipo == ce.id_cotizacion_equipo,
-                                           Inspeccion.estado.in_(("EN_CURSO", "DEVUELTA"))).first())
-    if abierta:
-        return _detalle(db, abierta)
+    # Un servicio tiene una sola primera visita: si ya existe (en curso, devuelta o finalizada) se abre esa
+    existente = db.query(Inspeccion).filter(Inspeccion.id_cotizacion_equipo == ce.id_cotizacion_equipo).first()
+    if existente:
+        return _detalle(db, existente)
 
     cot, eq = ce.cotizacion, ce.equipo
     ed, cl = cot.edificio, cot.cliente
     # Copia de los datos tal como estaban al abrir el informe (el informe no cambia si luego editan el cliente)
     snapshot = {
         "numero_cotizacion": cot.numero_cotizacion, "codigo_servicio": ce.codigo_servicio,
-        "tipo_servicio": ce.tipo_servicio,
+        "tipo_servicio": ce.tipo_servicio, "norma": ce.norma.etiqueta,
         "cliente": {"razon_social": cl.razon_social, "tipo_documento": cl.tipo_documento,
                     "numero_documento": cl.numero_documento, "contacto": cl.contacto_nombre},
         "edificio": fila(ed, CAMPOS_EDIFICIO),
@@ -276,9 +300,10 @@ def iniciar(datos: IniciarIn, db: Session = Depends(get_db), usuario: Usuario = 
                 .order_by(Inspeccion.fecha_inicio.desc()).first())
     insp = Inspeccion(
         numero_inspeccion=siguiente_numero(db, "INS"), id_cotizacion_equipo=ce.id_cotizacion_equipo,
-        id_programacion=p.id_programacion, id_inspector=usuario.id_usuario, uuid_offline=datos.uuid_offline,
-        datos_equipo_json=json.dumps(snapshot, ensure_ascii=False), fecha_inicio=datetime.now(),
-        empresa_mantenimiento=ed.empresa_mantenimiento, fecha_puesta_marcha=eq.fecha_puesta_marcha,
+        id_norma=ce.id_norma, id_programacion=p.id_programacion, id_inspector=usuario.id_usuario,
+        uuid_offline=datos.uuid_offline, datos_equipo_json=json.dumps(snapshot, ensure_ascii=False),
+        fecha_inicio=ahora(), empresa_mantenimiento=ed.empresa_mantenimiento,
+        fecha_puesta_marcha=eq.fecha_puesta_marcha,
         fecha_ultima_inspeccion=anterior.fecha_inicio.date() if anterior else None,
         capacidad_kg=eq.capacidad_kg, capacidad_personas=eq.capacidad_personas, numero_paradas=eq.numero_paradas,
         profundidad_foso_mm=eq.profundidad_foso_mm, recorrido_m=eq.recorrido_m,
@@ -286,7 +311,7 @@ def iniciar(datos: IniciarIn, db: Session = Depends(get_db), usuario: Usuario = 
     )
     db.add(insp)
     db.flush()
-    # Variantes conocidas del equipo e instrumentos asignados al inspector se precargan
+    # Variantes conocidas del equipo (de la misma parte de la norma) e instrumentos del inspector se precargan
     for v in eq.variantes:
         insp.variantes.append(InspeccionVariante(id_variante_tipo=v.id_variante_tipo, id_variante_opcion=v.id_variante_opcion))
     for ins in db.query(InstrumentoMedicion).filter(InstrumentoMedicion.id_inspector == usuario.id_usuario,
@@ -306,15 +331,18 @@ def _iniciar_segunda_visita(db: Session, p: Programacion, ce: CotizacionEquipo, 
             .order_by(Inspeccion.id_inspeccion.desc()).first())
     if insp and insp.estado == "EN_SEGUNDA_VISITA" and insp.id_programacion_visita2 == p.id_programacion:
         return _detalle(db, insp)
-    if not insp or insp.estado != "APROBADA" or not insp.informe or insp.informe.concepto != "NO_CONFORME":
-        raise HTTPException(409, "El equipo no tiene un informe no conforme pendiente de segunda visita")
+    inf1 = insp.informe(1) if insp else None
+    if not insp or insp.estado != "APROBADA" or not inf1 or inf1.estado != "APROBADO" or inf1.concepto != "NO_CONFORME":
+        raise HTTPException(409, "El equipo no tiene un informe de primera visita no conforme pendiente de segunda visita")
+    if insp.informe(2):
+        raise HTTPException(409, "Este servicio ya tuvo su segunda visita: solo existen dos visitas por servicio")
     insp.estado = "EN_SEGUNDA_VISITA"
     insp.id_programacion_visita2, insp.id_inspector_visita2 = p.id_programacion, usuario.id_usuario
-    insp.fecha_visita2 = datetime.now()
-    # Las firmas de una segunda visita anterior (si hubo más de una) se reemplazan
+    insp.fecha_inicio_visita2 = ahora()
+    # Si una segunda visita anterior se canceló a medias, sus firmas no sirven
     for f in [f for f in insp.firmas if f.numero_visita == 2]:
         insp.firmas.remove(f)
-    cambiar_estado(db, ce, "EN_INSPECCION", usuario, "Segunda visita")
+    cambiar_estado(db, ce, "EN_INSPECCION", usuario, "Segunda visita (cierre de hallazgos)")
     p.estado = "EN_CURSO"
     db.commit()
     db.refresh(insp)
@@ -333,6 +361,7 @@ def encabezado(id_inspeccion: int, datos: EncabezadoIn, db: Session = Depends(ge
     _editable(insp, usuario)
     for k, v in datos.model_dump(exclude_unset=True).items():
         setattr(insp, k, v)
+    insp.fecha_sincronizacion = ahora()
     db.commit()
     return _detalle(db, insp)
 
@@ -354,6 +383,7 @@ def datos_equipo(id_inspeccion: int, datos: EquipoDatosIn, db: Session = Depends
     snapshot = json.loads(insp.datos_equipo_json or "{}")
     snapshot["equipo"] = fila(equipo, CAMPOS_EQUIPO)
     insp.datos_equipo_json = json.dumps(snapshot, ensure_ascii=False)
+    insp.fecha_sincronizacion = ahora()
     db.commit()
     return _detalle(db, insp)
 
@@ -383,13 +413,14 @@ def variantes(id_inspeccion: int, datos: list[VarianteIn], db: Session = Depends
         else:
             equipo.variantes.append(EquipoVariante(**v.model_dump()))
     precargar_no_aplica(db, insp)
+    insp.fecha_sincronizacion = ahora()
     db.commit()
     db.refresh(insp)
     return _detalle(db, insp)
 
 
 # ============================================
-# CHECKLIST
+# CHECKLIST (el de la norma del servicio)
 # ============================================
 @router.get("/{id_inspeccion}/checklist")
 def checklist(id_inspeccion: int, db: Session = Depends(get_db), usuario: Usuario = Depends(get_current_user)):
@@ -399,43 +430,60 @@ def checklist(id_inspeccion: int, db: Session = Depends(get_db), usuario: Usuari
     fotos_por_res = {}
     for f in insp.fotos:
         if f.id_resultado:
-            fotos_por_res.setdefault(f.id_resultado, []).append(_foto_dict(f))
+            fotos_por_res.setdefault(f.id_resultado, []).append(foto_dict(f))
+    items_por_cat = {}
+    for it in (db.query(ChecklistItem).filter(ChecklistItem.id_norma == insp.id_norma, ChecklistItem.activo.is_(True))
+               .order_by(ChecklistItem.orden)):
+        items_por_cat.setdefault(it.id_categoria, []).append(it)
     categorias = []
-    for cat in db.query(ChecklistCategoria).filter(ChecklistCategoria.activo.is_(True)).order_by(ChecklistCategoria.orden):
-        items = (db.query(ChecklistItem).filter(ChecklistItem.id_categoria == cat.id_categoria,
-                                                ChecklistItem.activo.is_(True)).order_by(ChecklistItem.orden).all())
+    for cat in (db.query(ChecklistCategoria).filter(ChecklistCategoria.id_norma == insp.id_norma,
+                                                    ChecklistCategoria.activo.is_(True))
+                .order_by(ChecklistCategoria.orden)):
         lista = []
-        for it in items:
+        for it in items_por_cat.get(cat.id_categoria, []):
             r = res.get(it.id_item)
             lista.append({
                 "id_item": it.id_item, "numero": it.numero, "codigo": it.codigo, "descripcion": it.descripcion,
                 "criterio_cumplimiento": it.criterio_cumplimiento, "calificacion": it.calificacion,
                 "calificacion_corta": CALIF_CORTA[it.calificacion], "requiere_medicion": it.requiere_medicion,
-                "requiere_foto_medicion": it.requiere_foto_medicion, "aplica": aplica.get(it.id_item, True),
+                "requiere_foto_medicion": it.requiere_foto_medicion, "unidad_medida": it.unidad_medida,
+                "aplica": aplica.get(it.id_item, True),
                 "resultado": fila(r, ["id_resultado", "resultado", "calificacion_defecto", "no_aplica_automatico",
                                       "valor_medido", "unidad_medida", "observacion", "hallazgo_director",
-                                      "estado_segunda_visita", "observacion_segunda_visita"]) if r else None,
+                                      "estado_segunda_visita", "observacion_segunda_visita",
+                                      "modificado_en_cliente"]) if r else None,
                 "fotos": fotos_por_res.get(r.id_resultado, []) if r else [],
             })
         categorias.append({"id_categoria": cat.id_categoria, "codigo": cat.codigo, "nombre": cat.nombre,
                            "total": len(lista), "calificados": sum(1 for x in lista if x["resultado"]),
                            "items": lista})
-    return {"id_inspeccion": insp.id_inspeccion, "resumen": resumen(insp), "categorias": categorias}
+    return {"id_inspeccion": insp.id_inspeccion, "norma": insp.norma.etiqueta, "numero_visita": insp.visita_actual,
+            "resumen": resumen(insp), "categorias": categorias}
+
+
+def _es_mas_viejo(r: InspeccionResultado, modificado_en: datetime | None) -> bool:
+    """True si el cambio que llega es anterior al que ya está guardado (reenvío atrasado desde el celular)."""
+    if modificado_en is None or r.modificado_en_cliente is None:
+        return False
+    return a_local(modificado_en) < r.modificado_en_cliente
 
 
 @router.put("/{id_inspeccion}/resultados")
 def guardar_resultados(id_inspeccion: int, datos: list[ResultadoIn], db: Session = Depends(get_db),
                        usuario: Usuario = Depends(get_current_user)):
-    """Guarda en lote (sirve para sincronizar lo que el celular llenó sin señal)."""
+    """Guarda en lote (sirve para sincronizar lo que el celular llenó sin señal). Idempotente:
+    reenviar el mismo lote no cambia nada, y un cambio más viejo que el guardado se ignora."""
     insp = _obtener(db, id_inspeccion, usuario)
     _editable(insp, usuario, primera_visita=True)
-    items = {i.id_item: i for i in db.query(ChecklistItem).filter(ChecklistItem.id_item.in_([d.id_item for d in datos]))}
+    items = {i.id_item: i for i in db.query(ChecklistItem).filter(ChecklistItem.id_item.in_([d.id_item for d in datos]),
+                                                                   ChecklistItem.id_norma == insp.id_norma)}
     res = {r.id_item: r for r in insp.resultados}
     es_director = usuario.rol_codigo in (DIRECTOR_TECNICO, ADMIN)
+    omitidos = 0
     for d in datos:
         it = items.get(d.id_item)
         if not it:
-            raise HTTPException(400, f"Ítem {d.id_item} no existe")
+            raise HTTPException(400, f"El ítem {d.id_item} no pertenece al checklist de la norma {insp.norma.etiqueta}")
         if d.resultado not in RESULTADOS:
             raise HTTPException(400, f"Resultado inválido: {d.resultado}")
         r = res.get(d.id_item)
@@ -443,15 +491,19 @@ def guardar_resultados(id_inspeccion: int, datos: list[ResultadoIn], db: Session
             r = InspeccionResultado(id_item=d.id_item)
             insp.resultados.append(r)
             res[d.id_item] = r
+        elif _es_mas_viejo(r, d.modificado_en):
+            omitidos += 1
+            continue
         if es_director and r.resultado != d.resultado and d.resultado == "NO_CUMPLE":
             r.hallazgo_director = True
         r.resultado = d.resultado
         r.calificacion_defecto = it.calificacion if d.resultado == "NO_CUMPLE" else None
         r.no_aplica_automatico = False
         r.valor_medido, r.unidad_medida, r.observacion = d.valor_medido, d.unidad_medida, d.observacion
-    insp.fecha_sincronizacion = datetime.now()
+        r.modificado_en_cliente = a_local(d.modificado_en) or ahora()
+    insp.fecha_sincronizacion = ahora()
     db.commit()
-    return {"guardados": len(datos), "resumen": resumen(insp)}
+    return {"guardados": len(datos) - omitidos, "omitidos_por_antiguos": omitidos, "resumen": resumen(insp)}
 
 
 @router.put("/{id_inspeccion}/segunda-visita")
@@ -459,36 +511,44 @@ def guardar_segunda_visita(id_inspeccion: int, datos: list[SegundaVisitaIn], db:
                            usuario: Usuario = Depends(get_current_user)):
     """Cierre de hallazgos: cada ítem NO CUMPLE se marca CORREGIDO o NO_CORREGIDO."""
     insp = _obtener(db, id_inspeccion, usuario)
-    director_revisando = (usuario.rol_codigo in (DIRECTOR_TECNICO, ADMIN) and insp.informe
-                          and insp.informe.visita_actual == 2 and insp.informe.estado == "PENDIENTE_REVISION")
+    inf2 = insp.informe(2)
+    director_revisando = (usuario.rol_codigo in (DIRECTOR_TECNICO, ADMIN) and inf2
+                          and inf2.estado == "PENDIENTE_REVISION")
     if insp.estado != "EN_SEGUNDA_VISITA" and not director_revisando:
         raise HTTPException(409, "La inspección no está en segunda visita")
     res = {r.id_item: r for r in insp.resultados}
+    omitidos = 0
     for d in datos:
         r = res.get(d.id_item)
         if not r or r.resultado != "NO_CUMPLE":
             raise HTTPException(400, f"El ítem {d.id_item} no es un hallazgo (NO CUMPLE) de esta inspección")
         if d.estado_segunda_visita not in ("CORREGIDO", "NO_CORREGIDO"):
             raise HTTPException(400, "estado_segunda_visita debe ser CORREGIDO o NO_CORREGIDO")
+        if _es_mas_viejo(r, d.modificado_en):
+            omitidos += 1
+            continue
         r.estado_segunda_visita, r.observacion_segunda_visita = d.estado_segunda_visita, d.observacion_segunda_visita
+        r.modificado_en_cliente = a_local(d.modificado_en) or ahora()
+    insp.fecha_sincronizacion = ahora()
     db.commit()
-    return {"guardados": len(datos), "resumen": resumen(insp)}
+    return {"guardados": len(datos) - omitidos, "omitidos_por_antiguos": omitidos, "resumen": resumen(insp)}
 
 
 # ============================================
-# FOTOS (álbum de ~100 por equipo)
+# FOTOS (álbum de ~100 por equipo; cada foto queda marcada con su visita)
 # ============================================
 @router.post("/{id_inspeccion}/fotos", status_code=201)
 def subir_fotos(id_inspeccion: int, archivos_foto: list[UploadFile] = File(..., alias="archivos"),
                 id_item: int | None = Form(None), descripcion: str | None = Form(None),
-                uuid_offline: str | None = Form(None), db: Session = Depends(get_db),
-                usuario: Usuario = Depends(get_current_user)):
+                uuid_offline: str | None = Form(None), fecha_captura: datetime | None = Form(None),
+                latitud: float | None = Form(None), longitud: float | None = Form(None),
+                db: Session = Depends(get_db), usuario: Usuario = Depends(get_current_user)):
     insp = _obtener(db, id_inspeccion, usuario)
     _editable(insp, usuario)
     if uuid_offline and len(archivos_foto) == 1:
         previa = db.query(InspeccionFoto).filter(InspeccionFoto.uuid_offline == uuid_offline).first()
         if previa:
-            return [_foto_dict(previa)]
+            return [foto_dict(previa)]  # reintento: la foto ya llegó
     id_resultado = None
     if id_item:
         r = next((x for x in insp.resultados if x.id_item == id_item), None)
@@ -503,17 +563,20 @@ def subir_fotos(id_inspeccion: int, archivos_foto: list[UploadFile] = File(..., 
         orden += 1
         info = archivos.guardar_foto(insp.id_inspeccion, a)
         f = InspeccionFoto(id_resultado=id_resultado, descripcion=descripcion, orden=orden,
+                           numero_visita=insp.visita_actual,
                            uuid_offline=uuid_offline if len(archivos_foto) == 1 else None,
-                           fecha_captura=datetime.now(), **info)
+                           fecha_captura=a_local(fecha_captura) or ahora(), latitud=latitud, longitud=longitud,
+                           **info)
         insp.fotos.append(f)
         nuevas.append(f)
+    insp.fecha_sincronizacion = ahora()
     db.commit()
-    return [_foto_dict(f) for f in nuevas]
+    return [foto_dict(f) for f in nuevas]
 
 
 @router.get("/{id_inspeccion}/fotos")
 def listar_fotos(id_inspeccion: int, db: Session = Depends(get_db), usuario: Usuario = Depends(get_current_user)):
-    return [_foto_dict(f) for f in _obtener(db, id_inspeccion, usuario).fotos]
+    return [foto_dict(f) for f in _obtener(db, id_inspeccion, usuario).fotos]
 
 
 @router.put("/{id_inspeccion}/fotos/{id_foto}")
@@ -532,7 +595,7 @@ def actualizar_foto(id_inspeccion: int, id_foto: int, datos: FotoUpdate, db: Ses
     for k, v in cambios.items():
         setattr(f, k, v)
     db.commit()
-    return _foto_dict(f)
+    return foto_dict(f)
 
 
 @router.delete("/{id_inspeccion}/fotos/{id_foto}", status_code=204)
@@ -542,7 +605,9 @@ def borrar_foto(id_inspeccion: int, id_foto: int, db: Session = Depends(get_db),
     _editable(insp, usuario)
     f = next((x for x in insp.fotos if x.id_foto == id_foto), None)
     if not f:
-        raise HTTPException(404, "Foto no encontrada")
+        return  # ya estaba borrada: el reintento no falla
+    if f.numero_visita != insp.visita_actual:
+        raise HTTPException(409, "Las fotos de la primera visita no se pueden borrar durante la segunda")
     archivos.borrar(f.ruta_archivo)
     archivos.borrar(f.ruta_miniatura)
     insp.fotos.remove(f)
@@ -582,15 +647,19 @@ def mediciones(id_inspeccion: int, datos: list[MedicionIn], db: Session = Depend
 
 
 # ============================================
-# FIRMAS: inspector, técnico de mantenimiento y representante del edificio
+# FIRMAS: inspector, técnico de mantenimiento y representante del edificio (por visita)
 # ============================================
 @router.post("/{id_inspeccion}/firmas", status_code=201)
 def firmar(id_inspeccion: int, datos: FirmaIn, db: Session = Depends(get_db),
            usuario: Usuario = Depends(require_roles(INSPECTOR))):
     insp = _obtener(db, id_inspeccion, usuario)
+    if datos.uuid_offline and db.query(InspeccionFirma).filter(InspeccionFirma.uuid_offline == datos.uuid_offline).first():
+        return _detalle(db, insp)  # reintento: la firma ya llegó
+    if datos.numero_visita not in (1, 2):
+        raise HTTPException(400, "Solo existen la primera y la segunda visita")
     permitido = insp.estado in ("EN_CURSO", "DEVUELTA") if datos.numero_visita == 1 else insp.estado == "EN_SEGUNDA_VISITA"
     if not permitido:
-        raise HTTPException(409, f"La inspección está {insp.estado}; no se puede firmar")
+        raise HTTPException(409, f"La inspección está {insp.estado}; no se puede firmar la visita {datos.numero_visita}")
     if datos.tipo_firmante not in TIPOS_FIRMANTE:
         raise HTTPException(400, f"Tipo de firmante inválido: {datos.tipo_firmante}")
     ruta = archivos.guardar_firma_base64(f"inspecciones/{insp.id_inspeccion}/firmas", datos.firma_base64)
@@ -601,19 +670,20 @@ def firmar(id_inspeccion: int, datos: FirmaIn, db: Session = Depends(get_db),
         insp.firmas.remove(previa)
         db.flush()
     insp.firmas.append(InspeccionFirma(
-        numero_visita=datos.numero_visita, tipo_firmante=datos.tipo_firmante,
+        numero_visita=datos.numero_visita, tipo_firmante=datos.tipo_firmante, uuid_offline=datos.uuid_offline,
         id_usuario=usuario.id_usuario if datos.tipo_firmante == "INSPECTOR" else None,
         nombre=datos.nombre, documento=datos.documento, cargo=datos.cargo, empresa=datos.empresa,
-        ruta_firma=ruta, fecha_firma=datetime.now(),
+        ruta_firma=ruta, fecha_firma=a_local(datos.fecha_firma) or ahora(),
     ))
     if datos.tipo_firmante == "TECNICO_MANTENIMIENTO" and not insp.tecnico_mantenimiento:
         insp.tecnico_mantenimiento = datos.nombre
+    insp.fecha_sincronizacion = ahora()
     db.commit()
     return _detalle(db, insp)
 
 
 # ============================================
-# FINALIZAR -> pasa al director técnico
+# FINALIZAR -> el informe de la visita pasa al director técnico
 # ============================================
 @router.get("/{id_inspeccion}/validar")
 def validar(id_inspeccion: int, db: Session = Depends(get_db), usuario: Usuario = Depends(get_current_user)):
@@ -623,31 +693,49 @@ def validar(id_inspeccion: int, db: Session = Depends(get_db), usuario: Usuario 
     return {"puede_finalizar": not errores, "pendientes": errores}
 
 
+def _numero_informe(db: Session, insp: Inspeccion, numero_visita: int) -> str:
+    """INF-AAAA-NNNN-1V para la primera visita; la segunda reutiliza el mismo número con -2V."""
+    if numero_visita == 1:
+        return f"{siguiente_numero(db, 'INF')}-1V"
+    return insp.informe(1).numero_informe[:-3] + "-2V"
+
+
+def _enviar_a_revision(db: Session, insp: Inspeccion, numero_visita: int) -> Informe:
+    inf = insp.informe(numero_visita)
+    if inf:
+        inf.estado = "PENDIENTE_REVISION"   # vuelve después de una devolución
+    else:
+        inf = Informe(numero_informe=_numero_informe(db, insp, numero_visita), id_inspeccion=insp.id_inspeccion,
+                      numero_visita=numero_visita, estado="PENDIENTE_REVISION")
+        db.add(inf)
+        insp.informes.append(inf)
+    return inf
+
+
 @router.post("/{id_inspeccion}/finalizar")
 def finalizar(id_inspeccion: int, db: Session = Depends(get_db), usuario: Usuario = Depends(require_roles(INSPECTOR))):
     insp = _obtener(db, id_inspeccion, usuario)
     if insp.estado == "EN_SEGUNDA_VISITA":
         return _finalizar_segunda_visita(db, insp, usuario)
     if insp.estado not in ("EN_CURSO", "DEVUELTA"):
+        if insp.estado == "FINALIZADA":
+            return _detalle(db, insp)  # reintento: ya estaba finalizada
         raise HTTPException(409, f"La inspección ya está {insp.estado}")
     errores = pendientes_para_finalizar(db, insp)
     if errores:
         raise HTTPException(422, {"mensaje": "La inspección tiene pendientes", "pendientes": errores})
 
-    insp.estado, insp.fecha_fin = "FINALIZADA", datetime.now()
-    if insp.informe:
-        insp.informe.estado = "PENDIENTE_REVISION"
-    else:
-        db.add(Informe(numero_informe=siguiente_numero(db, "INF"), id_inspeccion=insp.id_inspeccion,
-                       estado="PENDIENTE_REVISION"))
+    insp.estado, insp.fecha_fin = "FINALIZADA", ahora()
+    inf = _enviar_a_revision(db, insp, 1)
     cambiar_estado(db, insp.cotizacion_equipo, "EN_REVISION", usuario)
     p = insp.programacion
     if all(pe.cotizacion_equipo.estado not in ("PROGRAMADO", "EN_INSPECCION") for pe in p.equipos):
         p.estado = "REALIZADA"
     ce = insp.cotizacion_equipo
-    notificar(db, usuarios_por_rol(db, DIRECTOR_TECNICO), f"Informe por revisar {ce.codigo_servicio}",
-              f"{insp.inspector.nombre_completo} finalizó la inspección de {ce.equipo.identificacion} "
-              f"en {ce.cotizacion.edificio.nombre}.", "INFORME", insp.id_inspeccion, "/informes")
+    db.flush()
+    notificar(db, usuarios_por_rol(db, DIRECTOR_TECNICO), f"Informe por revisar {inf.numero_informe}",
+              f"{insp.inspector.nombre_completo} finalizó la primera visita de {ce.equipo.identificacion} "
+              f"en {ce.cotizacion.edificio.nombre}.", "INFORME", inf.id_informe, f"/informes/{inf.id_informe}")
     db.commit()
     db.refresh(insp)
     return _detalle(db, insp)
@@ -657,19 +745,19 @@ def _finalizar_segunda_visita(db: Session, insp: Inspeccion, usuario: Usuario):
     errores = pendientes_segunda_visita(insp)
     if errores:
         raise HTTPException(422, {"mensaje": "La segunda visita tiene pendientes", "pendientes": errores})
-    insp.estado = "FINALIZADA"
-    inf = insp.informe
-    inf.estado, inf.visita_actual = "PENDIENTE_REVISION", 2
+    insp.estado, insp.fecha_fin_visita2 = "FINALIZADA", ahora()
+    inf = _enviar_a_revision(db, insp, 2)
     ce = insp.cotizacion_equipo
     cambiar_estado(db, ce, "EN_REVISION", usuario, "Segunda visita finalizada")
-    p2 = db.get(Programacion, insp.id_programacion_visita2)
+    p2 = insp.programacion_visita2
     if all(pe.cotizacion_equipo.estado not in ("PROGRAMADO", "EN_INSPECCION") for pe in p2.equipos):
         p2.estado = "REALIZADA"
     r = resumen(insp)
-    notificar(db, usuarios_por_rol(db, DIRECTOR_TECNICO), f"Segunda visita por revisar {ce.codigo_servicio}",
+    db.flush()
+    notificar(db, usuarios_por_rol(db, DIRECTOR_TECNICO), f"Informe de 2ª visita por revisar {inf.numero_informe}",
               f"{usuario.nombre_completo} cerró la segunda visita de {ce.equipo.identificacion}: "
               f"{r['corregidos']} corregidos, {r['no_corregidos']} no corregidos.", "INFORME",
-              insp.id_inspeccion, "/informes")
+              inf.id_informe, f"/informes/{inf.id_informe}")
     db.commit()
     db.refresh(insp)
     return _detalle(db, insp)
