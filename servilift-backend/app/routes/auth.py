@@ -1,7 +1,5 @@
 # app/routes/auth.py
 
-from datetime import datetime
-
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -11,6 +9,7 @@ from app.models import Usuario
 from app.routes.serializers import usuario_dict
 from app.routes.usuarios import MIN_CONTRASENA
 from app.security import create_access_token, get_current_user, hash_password, verify_password
+from app.tiempo import ahora
 
 router = APIRouter(prefix="/auth", tags=["Autenticación"])
 
@@ -32,7 +31,7 @@ def login(datos: LoginIn, db: Session = Depends(get_db)):
         raise HTTPException(401, "Correo o contraseña incorrectos")
     if usuario.estado != "ACTIVO":
         raise HTTPException(403, "Usuario inactivo")
-    usuario.ultima_sesion = datetime.now()
+    usuario.ultima_sesion = ahora()
     db.commit()
     return {"access_token": create_access_token(usuario), "token_type": "bearer", "usuario": usuario_dict(usuario)}
 

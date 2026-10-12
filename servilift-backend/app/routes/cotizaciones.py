@@ -1,8 +1,9 @@
 # app/routes/cotizaciones.py
-# Asesor crea la cotización (un edificio, equipos elegidos uno a uno con su valor),
-# la envía al cliente; el cliente aprueba o rechaza; el asesor la envía a programación.
+# Asesor crea la cotización (un edificio, equipos elegidos uno a uno con su valor y la norma con que
+# se inspeccionan), la envía al cliente; el cliente aprueba o rechaza; el asesor la envía a programación.
+# Un equipo que quedó CERRADO_NO_CONFORME (falló la 2ª visita) vuelve a empezar con una cotización nueva,
+# que queda enlazada al servicio anterior.
 
-from datetime import date, datetime
 from decimal import Decimal, ROUND_HALF_UP
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -10,12 +11,13 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Cotizacion, CotizacionEquipo, Edificio, Usuario
+from app.models import Cotizacion, CotizacionEquipo, Edificio, Norma, Usuario
 from app.routes.serializers import cotizacion_dict
 from app.security import ASESOR, CLIENTE, PROGRAMACION, get_current_user, require_roles
 from app.services.flujo import (
-    cambiar_estado, notificar, registrar_evento, siguiente_numero, usuarios_del_cliente, usuarios_por_rol,
+    TRANSICIONES, cambiar_estado, notificar, registrar_evento, siguiente_numero, usuarios_del_cliente, usuarios_por_rol,
 )
+from app.tiempo import ahora, hoy
 
 router = APIRouter(prefix="/cotizaciones", tags=["Cotizaciones"])
 
@@ -24,6 +26,7 @@ TIPOS_SERVICIO = {"INSPECCION_INICIAL", "INSPECCION_PERIODICA", "REINSPECCION", 
 
 class EquipoCotizadoIn(BaseModel):
     id_equipo: int
+    id_norma: int | None = None          # si no llega, la edición vigente de la NTC 5926-1
     valor: Decimal = Field(ge=0)
     tipo_servicio: str = "INSPECCION_PERIODICA"
     descripcion: str | None = None
@@ -73,17 +76,36 @@ def _cargar_equipos(db: Session, cot: Cotizacion, edificio: Edificio, equipos: l
         raise HTTPException(400, f"Los equipos {sorted(ajenos)} no pertenecen al edificio {edificio.nombre}")
     cot.equipos.clear()
     db.flush()
+    vigente = norma_vigente(db, parte=1)
     for i, e in enumerate(equipos, start=1):
         if e.tipo_servicio not in TIPOS_SERVICIO:
             raise HTTPException(400, f"Tipo de servicio inválido: {e.tipo_servicio}")
+        norma = db.get(Norma, e.id_norma) if e.id_norma else vigente
+        if not norma or not norma.activo:
+            raise HTTPException(400, f"Norma {e.id_norma} no existe o está inactiva")
         cot.equipos.append(CotizacionEquipo(
-            id_equipo=e.id_equipo, codigo_servicio=f"{cot.numero_cotizacion}-{i:02d}",
+            id_equipo=e.id_equipo, id_norma=norma.id_norma, codigo_servicio=f"{cot.numero_cotizacion}-{i:02d}",
             tipo_servicio=e.tipo_servicio, descripcion=e.descripcion, valor=_dos(e.valor),
-            estado="PENDIENTE_APROBACION",
+            estado="PENDIENTE_APROBACION", id_servicio_anterior=_servicio_cerrado_no_conforme(db, e.id_equipo),
         ))
     cot.subtotal = _dos(sum((e.valor for e in equipos), Decimal("0")))
     cot.iva_valor = _dos(cot.subtotal * Decimal(cot.iva_porcentaje) / 100)
     cot.total = cot.subtotal + cot.iva_valor
+
+
+def norma_vigente(db: Session, parte: int = 1) -> Norma:
+    n = db.query(Norma).filter(Norma.parte == parte, Norma.vigente.is_(True), Norma.activo.is_(True)).first()
+    if not n:
+        raise HTTPException(409, f"No hay una edición vigente de la NTC 5926-{parte}. Configúrela en Normas.")
+    return n
+
+
+def _servicio_cerrado_no_conforme(db: Session, id_equipo: int) -> int | None:
+    """Último servicio del equipo que quedó no conforme en la 2ª visita (la cotización nueva lo continúa)."""
+    ce = (db.query(CotizacionEquipo).filter(CotizacionEquipo.id_equipo == id_equipo,
+                                            CotizacionEquipo.estado == "CERRADO_NO_CONFORME")
+          .order_by(CotizacionEquipo.id_cotizacion_equipo.desc()).first())
+    return ce.id_cotizacion_equipo if ce else None
 
 
 # ============================================
@@ -124,7 +146,7 @@ def crear(datos: CotizacionIn, db: Session = Depends(get_db), usuario: Usuario =
         raise HTTPException(404, "Edificio no encontrado")
     cot = Cotizacion(
         numero_cotizacion=siguiente_numero(db, "COT"), id_cliente=edificio.id_cliente,
-        id_edificio=edificio.id_edificio, id_asesor=usuario.id_usuario, fecha_cotizacion=date.today(),
+        id_edificio=edificio.id_edificio, id_asesor=usuario.id_usuario, fecha_cotizacion=hoy(),
         dias_validez=datos.dias_validez, iva_porcentaje=datos.iva_porcentaje,
         condiciones=datos.condiciones, observaciones=datos.observaciones, estado="BORRADOR",
     )
@@ -162,7 +184,7 @@ def enviar_cliente(id_cotizacion: int, db: Session = Depends(get_db),
     if not destinatarios:
         raise HTTPException(409, "El cliente no tiene usuario en el portal. Créelo antes de enviar la cotización.")
     cot.estado = "ENVIADA_CLIENTE"
-    cot.fecha_envio_cliente = datetime.now()
+    cot.fecha_envio_cliente = ahora()
     for ce in cot.equipos:
         registrar_evento(db, ce, usuario, f"Cotización {cot.numero_cotizacion} enviada al cliente (${ce.valor:,.0f})".replace(",", "."))
     notificar(db, destinatarios, f"Nueva cotización {cot.numero_cotizacion}",
@@ -182,7 +204,7 @@ def responder(id_cotizacion: int, datos: RespuestaClienteIn, db: Session = Depen
     if cot.estado != "ENVIADA_CLIENTE":
         raise HTTPException(409, "Esta cotización no está pendiente de aprobación")
     cot.estado = "APROBADA_CLIENTE" if datos.aprobada else "RECHAZADA_CLIENTE"
-    cot.fecha_respuesta_cliente = datetime.now()
+    cot.fecha_respuesta_cliente = ahora()
     cot.id_usuario_respuesta = usuario.id_usuario
     cot.comentario_cliente = datos.comentario
     for ce in cot.equipos:
@@ -205,7 +227,7 @@ def enviar_programacion(id_cotizacion: int, db: Session = Depends(get_db),
     if cot.estado != "APROBADA_CLIENTE":
         raise HTTPException(409, "El cliente todavía no ha aprobado la cotización")
     cot.estado = "ENVIADA_PROGRAMACION"
-    cot.fecha_envio_programacion = datetime.now()
+    cot.fecha_envio_programacion = ahora()
     for ce in cot.equipos:
         cambiar_estado(db, ce, "POR_PROGRAMAR", usuario)
     notificar(db, usuarios_por_rol(db, PROGRAMACION), f"Por programar: {cot.numero_cotizacion}",
@@ -219,10 +241,11 @@ def enviar_programacion(id_cotizacion: int, db: Session = Depends(get_db),
 def anular(id_cotizacion: int, datos: MotivoIn, db: Session = Depends(get_db),
            usuario: Usuario = Depends(require_roles(ASESOR))):
     cot = _obtener(db, id_cotizacion, usuario)
-    if any(ce.estado in ("EN_INSPECCION", "EN_REVISION", "INFORME_APROBADO", "CERTIFICADO_LISTO") for ce in cot.equipos):
+    if any(ce.estado in ("EN_INSPECCION", "EN_REVISION", "NO_CONFORME", "SEGUNDA_VISITA_SOLICITADA",
+                         "INFORME_APROBADO", "CERTIFICADO_LISTO", "CERRADO_NO_CONFORME") for ce in cot.equipos):
         raise HTTPException(409, "No se puede anular: ya hay equipos inspeccionados")
     for ce in cot.equipos:
-        if ce.estado not in ("RECHAZADO", "ANULADO"):
+        if ce.estado not in ("RECHAZADO", "ANULADO") and "ANULADO" in TRANSICIONES.get(ce.estado, ()):
             cambiar_estado(db, ce, "ANULADO", usuario, datos.motivo)
     cot.estado = "ANULADA"
     cot.observaciones = ((cot.observaciones or "") + f"\nAnulada: {datos.motivo or ''}").strip()
