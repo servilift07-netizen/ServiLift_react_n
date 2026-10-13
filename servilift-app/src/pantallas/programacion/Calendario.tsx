@@ -2,10 +2,10 @@
 import { Stack } from 'expo-router';
 import { useState } from 'react';
 import { RefreshControl, View } from 'react-native';
-import { IconButton, Menu, Text } from 'react-native-paper';
+import { Button, Dialog, IconButton, Menu, Portal, Text, TextInput } from 'react-native-paper';
 
 import { Api } from '@/api/cliente';
-import { CampoFecha, Fechas } from '@/componentes/Campos';
+import { CampoFecha, CampoHora, Fechas } from '@/componentes/Campos';
 import { Contenido, EstadoCarga, EstadoChip, Fila, Tarjeta, Titulo, Vacio } from '@/componentes/Comunes';
 import { useDialogos } from '@/componentes/Dialogos';
 import { useCarga } from '@/hooks/useCarga';
@@ -32,7 +32,7 @@ export default function Calendario() {
     <>
       <Stack.Screen options={{ title: 'Calendario' }} />
       <Contenido refreshControl={<RefreshControl refreshing={false} onRefresh={c.recargar} />}>
-        <CampoFecha etiqueta="Desde" valor={desdeTexto} onCambiar={setDesdeTexto} style={{ maxWidth: 280 }} />
+        <CampoFecha etiqueta="Desde" valor={desdeTexto} onCambiar={setDesdeTexto} permitirNI={false} style={{ maxWidth: 280 }} />
         {!c.datos ? <EstadoCarga error={c.error} onReintentar={c.recargar} />
           : !c.datos.length ? <Vacio texto="No hay visitas programadas" icono="calendar-month-outline" />
             : [...porDia.entries()].map(([dia, visitas]) => (
@@ -49,6 +49,7 @@ export default function Calendario() {
 function Visita({ p, recargar }: { p: any; recargar: () => Promise<void> }) {
   const d = useDialogos();
   const [menu, setMenu] = useState(false);
+  const [reprogramando, setReprogramando] = useState(false);
   const cerrada = ['REALIZADA', 'CANCELADA'].includes(p.estado);
 
   const cancelar = async () => {
@@ -58,26 +59,9 @@ function Visita({ p, recargar }: { p: any; recargar: () => Promise<void> }) {
       { exito: 'Visita cancelada' })) void recargar();
   };
 
-  const reprogramar = async () => {
+  const reprogramar = () => {
     setMenu(false);
-    const v = await d.formulario({
-      titulo: 'Reprogramar visita',
-      campos: [
-        { clave: 'fecha', etiqueta: 'Nueva fecha (dd/mm/aaaa)', obligatorio: true },
-        { clave: 'hora', etiqueta: 'Hora (HH:MM)', obligatorio: true },
-        { clave: 'motivo', etiqueta: 'Motivo', obligatorio: true },
-      ],
-      valores: { fecha: Fechas.mostrar(p.fecha_programada), hora: hora(p.hora_inicio), motivo: '' },
-      guardar: async (x) => {
-        const fechaNueva = Fechas.paraApi(x.fecha);
-        if (!fechaNueva || !horaValida(x.hora)) throw new Error('Revise la fecha y la hora');
-        return Api.put(`/programacion/${p.id_programacion}`, { fecha_programada: fechaNueva, hora_inicio: horaApi(x.hora), motivo_cambio: x.motivo });
-      },
-    });
-    if (v) {
-      d.mensaje('Visita reprogramada');
-      void recargar();
-    }
+    setReprogramando(true);
   };
 
   return (
@@ -99,6 +83,51 @@ function Visita({ p, recargar }: { p: any; recargar: () => Promise<void> }) {
           </Menu>
         )}
       </Fila>
+      {reprogramando && (
+        <DialogoReprogramar p={p} cerrar={(ok) => {
+          setReprogramando(false);
+          if (ok) void recargar();
+        }} />
+      )}
     </Tarjeta>
+  );
+}
+
+/** Reprogramar una visita: nueva fecha (calendario, sin días pasados), hora (reloj) y motivo. */
+function DialogoReprogramar({ p, cerrar }: { p: any; cerrar: (ok: boolean) => void }) {
+  const d = useDialogos();
+  const [dia, setDia] = useState(p.fecha_programada >= Fechas.hoy() ? Fechas.mostrar(p.fecha_programada) : Fechas.mostrar(Fechas.hoy()));
+  const [horaInicio, setHoraInicio] = useState(hora(p.hora_inicio));
+  const [motivo, setMotivo] = useState('');
+  const [enviando, setEnviando] = useState(false);
+
+  const guardar = async () => {
+    const fechaNueva = Fechas.paraApi(dia);
+    if (!fechaNueva || fechaNueva < Fechas.hoy()) return d.mensaje('Elija una fecha de hoy en adelante', true);
+    if (!horaValida(horaInicio)) return d.mensaje('Elija la hora', true);
+    if (!motivo.trim()) return d.mensaje('Escriba el motivo del cambio', true);
+    setEnviando(true);
+    const ok = await d.ejecutar(() => Api.put(`/programacion/${p.id_programacion}`,
+      { fecha_programada: fechaNueva, hora_inicio: horaApi(horaInicio), motivo_cambio: motivo.trim() }), { exito: 'Visita reprogramada' });
+    setEnviando(false);
+    if (ok) cerrar(true);
+  };
+
+  return (
+    <Portal>
+      <Dialog visible onDismiss={() => cerrar(false)} style={{ maxWidth: 480, width: '94%', alignSelf: 'center' }}>
+        <Dialog.Title>Reprogramar visita</Dialog.Title>
+        <Dialog.Content style={{ gap: 10 }}>
+          <Text style={{ color: Colores.gris }}>{p.numero_cotizacion} · {p.edificio?.nombre ?? ''}</Text>
+          <CampoFecha etiqueta="Nueva fecha" valor={dia} onCambiar={setDia} minimo={Fechas.hoy()} permitirNI={false} />
+          <CampoHora etiqueta="Hora de inicio" valor={horaInicio} onCambiar={setHoraInicio} />
+          <TextInput mode="outlined" dense label="Motivo del cambio *" value={motivo} onChangeText={setMotivo} multiline />
+        </Dialog.Content>
+        <Dialog.Actions>
+          <Button onPress={() => cerrar(false)}>Cancelar</Button>
+          <Button mode="contained" loading={enviando} disabled={enviando} onPress={guardar}>Reprogramar</Button>
+        </Dialog.Actions>
+      </Dialog>
+    </Portal>
   );
 }

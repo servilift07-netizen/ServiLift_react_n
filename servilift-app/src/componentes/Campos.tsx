@@ -1,14 +1,62 @@
-// Campos de formulario reutilizables: selector de opciones y fecha con opción "NI".
+// Campos de formulario reutilizables: selector de opciones, fecha (calendario) y hora (reloj).
+// Los tres son un botón con aspecto de campo: cualquier parte (texto, ícono o borde) abre su ventana.
+// (No se usa un campo de texto bloqueado porque en el navegador el ícono y el texto capturaban el clic.)
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useState } from 'react';
+import { ComponentProps, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
-import { Button, Dialog, Portal, RadioButton, Searchbar, Text, TextInput } from 'react-native-paper';
+import { Button, Dialog, Portal, RadioButton, Searchbar, Text } from 'react-native-paper';
 
 import { Colores, fechaApi } from '@/tema';
+import { Calendario } from './Calendario';
+import { Reloj } from './Reloj';
 
 export interface Opcion<T extends string | number = string> {
   valor: T;
   texto: string;
+}
+
+/** Botón con aspecto de campo de formulario (borde, etiqueta flotante e ícono a la derecha). */
+export function CampoBoton({ etiqueta, texto, icono, onPress, deshabilitado, error }: {
+  etiqueta: string;
+  texto: string;
+  icono: ComponentProps<typeof MaterialCommunityIcons>['name'];
+  onPress: () => void;
+  deshabilitado?: boolean;
+  error?: boolean;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={deshabilitado}
+      accessibilityRole="button"
+      accessibilityLabel={`${etiqueta}: ${texto || 'sin seleccionar'}`}
+      style={{ paddingTop: 6 }}
+    >
+      {(estado) => {
+        const encima = (estado as { hovered?: boolean }).hovered && !deshabilitado;
+        const borde = error ? Colores.error : encima ? Colores.acento : '#79747E';
+        return (
+          <View>
+            <View style={{
+              minHeight: 42, flexDirection: 'row', alignItems: 'center', paddingLeft: 14, paddingRight: 8,
+              borderWidth: encima || error ? 2 : 1, borderColor: borde, borderRadius: 10, backgroundColor: '#fff',
+              opacity: deshabilitado ? 0.55 : 1,
+            }}>
+              <Text numberOfLines={1} style={{ flex: 1, fontSize: 16, color: texto ? Colores.navy : Colores.gris }}>
+                {texto || etiqueta}
+              </Text>
+              <MaterialCommunityIcons name={icono} size={22} color={Colores.gris} />
+            </View>
+            {!!texto && (
+              <Text numberOfLines={1} style={{ position: 'absolute', top: -7, left: 10, right: 30, alignSelf: 'flex-start' }}>
+                <Text style={{ fontSize: 12, color: error ? Colores.error : Colores.gris, backgroundColor: '#fff' }}> {etiqueta} </Text>
+              </Text>
+            )}
+          </View>
+        );
+      }}
+    </Pressable>
+  );
 }
 
 /** Campo que abre una lista para elegir (funciona igual en celular y navegador). */
@@ -31,36 +79,7 @@ export function Selector<T extends string | number>({
   const texto = elegida?.texto ?? (permitirVacio && (valor === null || valor === undefined) ? textoVacio : '');
   return (
     <View style={style}>
-      {/* Botón con aspecto de campo: cualquier parte (texto, flecha o borde) abre la lista.
-          No se usa un campo de texto bloqueado porque en el navegador la flecha y el texto
-          capturaban el clic (el texto se desplazaba y la lista no abría). */}
-      <Pressable
-        onPress={() => setAbierto(true)}
-        disabled={deshabilitado}
-        accessibilityRole="button"
-        accessibilityLabel={`${etiqueta}: ${texto || 'sin seleccionar'}`}
-        style={{ paddingTop: 6 }}
-      >
-        {(estado) => { const hovered = (estado as { hovered?: boolean }).hovered; return (
-          <View>
-            <View style={{
-              minHeight: 42, flexDirection: 'row', alignItems: 'center', paddingLeft: 14, paddingRight: 6,
-              borderWidth: hovered && !deshabilitado ? 2 : 1, borderColor: hovered && !deshabilitado ? Colores.acento : '#79747E',
-              borderRadius: 10, backgroundColor: '#fff', opacity: deshabilitado ? 0.55 : 1,
-            }}>
-              <Text numberOfLines={1} style={{ flex: 1, fontSize: 16, color: texto ? Colores.navy : Colores.gris }}>
-                {texto || etiqueta}
-              </Text>
-              <MaterialCommunityIcons name="menu-down" size={24} color={Colores.gris} />
-            </View>
-            {!!texto && (
-              <Text numberOfLines={1} style={{ position: 'absolute', top: -7, left: 10, right: 30, alignSelf: 'flex-start' }}>
-                <Text style={{ fontSize: 12, color: Colores.gris, backgroundColor: '#fff' }}> {etiqueta} </Text>
-              </Text>
-            )}
-          </View>
-        ); }}
-      </Pressable>
+      <CampoBoton etiqueta={etiqueta} texto={texto} icono="menu-down" deshabilitado={deshabilitado} onPress={() => setAbierto(true)} />
       <Portal>
         <Dialog visible={abierto} onDismiss={() => setAbierto(false)} style={{ maxWidth: 520, width: '92%', alignSelf: 'center' }}>
           <Dialog.Title>{etiqueta}</Dialog.Title>
@@ -95,7 +114,7 @@ export function Selector<T extends string | number>({
   );
 }
 
-/** Fechas: el usuario escribe dd/mm/aaaa (o usa "Hoy"); "NI" deja el campo vacío (no informa / no aplica). */
+/** Fechas en pantalla (dd/mm/aaaa) y para el API (aaaa-mm-dd). "NI" o vacío = no informa / no aplica. */
 export const Fechas = {
   /** ISO (aaaa-mm-dd...) -> dd/mm/aaaa */
   mostrar(iso?: string | null): string {
@@ -118,41 +137,86 @@ export const Fechas = {
     if (a < 1900 || f.getMonth() !== mes - 1 || f.getDate() !== d) throw new Error(`Fecha inválida: ${texto}`);
     return fechaApi(f);
   },
+  hoy(): string {
+    return fechaApi(new Date());
+  },
 };
 
-export function CampoFecha({ etiqueta, valor, onCambiar, deshabilitado, style }: {
+/** Campo de fecha: abre el calendario. `valor` y `onCambiar` usan dd/mm/aaaa ('' = NI).
+ *  minimo / maximo en aaaa-mm-dd (ej. minimo = hoy para no programar en días pasados). */
+export function CampoFecha({ etiqueta, valor, onCambiar, deshabilitado, minimo, maximo, permitirNI = true, style }: {
   etiqueta: string;
   valor: string;
   onCambiar: (texto: string) => void;
   deshabilitado?: boolean;
+  minimo?: string;
+  maximo?: string;
+  permitirNI?: boolean;
   style?: any;
 }) {
-  let invalida = false;
+  const [abierto, setAbierto] = useState(false);
+  let iso: string | null = null;
   try {
-    Fechas.paraApi(valor);
+    iso = Fechas.paraApi(valor);
   } catch {
-    invalida = true;
+    iso = null;
   }
+  const fueraDeRango = !!iso && ((!!minimo && iso < minimo) || (!!maximo && iso > maximo));
   return (
     <View style={style}>
-      <TextInput
-        mode="outlined"
-        dense
-        label={etiqueta}
-        value={valor}
-        placeholder="dd/mm/aaaa o NI"
-        onChangeText={onCambiar}
-        disabled={deshabilitado}
-        error={invalida}
-        keyboardType="numbers-and-punctuation"
-        right={deshabilitado ? undefined : <TextInput.Icon tabIndex={-1} icon="calendar-today" onPress={() => onCambiar(Fechas.mostrar(fechaApi(new Date())))} />}
+      <CampoBoton etiqueta={etiqueta} texto={iso ? Fechas.mostrar(iso) : permitirNI ? 'NI' : ''}
+        icono="calendar-month" deshabilitado={deshabilitado} error={fueraDeRango} onPress={() => setAbierto(true)} />
+      {fueraDeRango && (
+        <Text style={{ color: Colores.error, fontSize: 12 }}>
+          {minimo && iso! < minimo ? 'No se pueden elegir días pasados' : 'La fecha no puede ser posterior a hoy'}
+        </Text>
+      )}
+      <Calendario
+        visible={abierto}
+        titulo={etiqueta}
+        valor={iso}
+        minimo={minimo}
+        maximo={maximo}
+        permitirNI={permitirNI}
+        onCerrar={() => setAbierto(false)}
+        onElegir={(nuevo) => {
+          setAbierto(false);
+          onCambiar(nuevo ? Fechas.mostrar(nuevo) : '');
+        }}
       />
-      {!deshabilitado && (
+    </View>
+  );
+}
+
+/** Campo de hora: abre el reloj. `valor` y `onCambiar` usan HH:MM ('' = sin hora). */
+export function CampoHora({ etiqueta, valor, onCambiar, deshabilitado, permitirVacio, style }: {
+  etiqueta: string;
+  valor: string;
+  onCambiar: (hhmm: string) => void;
+  deshabilitado?: boolean;
+  /** muestra "Quitar" para dejar el campo vacío (hora opcional) */
+  permitirVacio?: boolean;
+  style?: any;
+}) {
+  const [abierto, setAbierto] = useState(false);
+  return (
+    <View style={style}>
+      <CampoBoton etiqueta={etiqueta} texto={valor} icono="clock-outline" deshabilitado={deshabilitado} onPress={() => setAbierto(true)} />
+      {permitirVacio && !!valor && !deshabilitado && (
         <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
-          <Button compact onPress={() => onCambiar('')}>NI</Button>
+          <Button compact onPress={() => onCambiar('')}>Quitar</Button>
         </View>
       )}
-      {invalida && <Text style={{ color: '#C0392B', fontSize: 12 }}>Use dd/mm/aaaa o deje NI</Text>}
+      <Reloj
+        visible={abierto}
+        titulo={etiqueta}
+        valor={valor || null}
+        onCerrar={() => setAbierto(false)}
+        onElegir={(hhmm) => {
+          setAbierto(false);
+          onCambiar(hhmm);
+        }}
+      />
     </View>
   );
 }

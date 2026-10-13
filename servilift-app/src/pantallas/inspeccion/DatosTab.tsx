@@ -118,7 +118,7 @@ export default function DatosTab({ insp, editable, fijar }: { insp: any; editabl
           <Selector style={campo} etiqueta="Tipo de equipo" valor={tipoEquipo} opciones={TIPOS_EQUIPO} deshabilitado={!editable}
             onCambiar={(v) => v && setTipoEquipo(v)} />
           {CAMPOS_EQUIPO.map(([k, etq, numero]) => (k.startsWith('fecha_')
-            ? <CampoFecha key={k} style={campo} etiqueta={etq} valor={equipo[k]} deshabilitado={!editable}
+            ? <CampoFecha key={k} style={campo} etiqueta={etq} valor={equipo[k]} deshabilitado={!editable} maximo={Fechas.hoy()}
                 onCambiar={(t) => setEquipo((x) => ({ ...x, [k]: t }))} />
             : <TextInput key={k} style={campo} mode="outlined" dense label={etq} placeholder="NI" value={equipo[k]} disabled={!editable}
                 keyboardType={numero ? 'decimal-pad' : 'default'} onChangeText={(t) => setEquipo((x) => ({ ...x, [k]: t }))} />))}
@@ -142,7 +142,7 @@ export default function DatosTab({ insp, editable, fijar }: { insp: any; editabl
             opciones={[{ valor: 'DIGITAL', texto: 'Digital' }, { valor: 'FISICO', texto: 'Físico' }]}
             onCambiar={(v) => v && setConservacion(v)} />
           {CAMPOS_INFORME.map(([k, etq]) => (k.startsWith('fecha_')
-            ? <CampoFecha key={k} style={campo} etiqueta={etq} valor={informe[k]} deshabilitado={!editable}
+            ? <CampoFecha key={k} style={campo} etiqueta={etq} valor={informe[k]} deshabilitado={!editable} maximo={Fechas.hoy()}
                 onCambiar={(t) => setInforme((x) => ({ ...x, [k]: t }))} />
             : <TextInput key={k} style={campo} mode="outlined" dense label={etq} placeholder="NI" value={informe[k]} disabled={!editable}
                 onChangeText={(t) => setInforme((x) => ({ ...x, [k]: t }))} />))}

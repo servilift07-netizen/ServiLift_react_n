@@ -5,7 +5,7 @@ import { RefreshControl, ScrollView, View } from 'react-native';
 import { Button, Checkbox, Chip, Dialog, Portal, Text, TextInput } from 'react-native-paper';
 
 import { Api } from '@/api/cliente';
-import { CampoFecha, Fechas, Selector } from '@/componentes/Campos';
+import { CampoFecha, CampoHora, Fechas, Selector } from '@/componentes/Campos';
 import { Contenido, EstadoCarga, EstadoChip, Fila, Tarjeta, Vacio } from '@/componentes/Comunes';
 import { useDialogos } from '@/componentes/Dialogos';
 import { BotonHistorial } from '@/componentes/Historial';
@@ -85,6 +85,8 @@ function DialogoProgramar({ cot, equipos, tipo, cerrar }: { cot: any; equipos: a
       fechaProg = null;
     }
     if (!inspector || !sel.size || !fechaProg) return d.mensaje('Seleccione inspector, fecha y equipos', true);
+    if (fechaProg < Fechas.hoy()) return d.mensaje('No se puede programar una visita en un día pasado', true);
+    if (horaFin && horaFin <= horaInicio) return d.mensaje('El fin estimado debe ser después de la hora de inicio', true);
     if (!horaValida(horaInicio) || (horaFin && !horaValida(horaFin))) return d.mensaje('Hora inválida (use HH:MM)', true);
     setEnviando(true);
     const ok = await d.ejecutar(() => Api.post('/programacion', {
@@ -114,10 +116,10 @@ function DialogoProgramar({ cot, equipos, tipo, cerrar }: { cot: any; equipos: a
             ))}
             <Selector etiqueta="Inspector" valor={inspector} onCambiar={setInspector}
               opciones={inspectores.map((u) => ({ valor: u.id_usuario, texto: u.nombre_completo }))} />
-            <CampoFecha etiqueta="Fecha de la visita" valor={dia} onCambiar={setDia} />
+            <CampoFecha etiqueta="Fecha de la visita" valor={dia} onCambiar={setDia} minimo={Fechas.hoy()} permitirNI={false} />
             <Fila>
-              <TextInput mode="outlined" dense label="Hora inicio (HH:MM)" value={horaInicio} onChangeText={setHoraInicio} style={{ flex: 1 }} />
-              <TextInput mode="outlined" dense label="Fin estimado (opcional)" value={horaFin} onChangeText={setHoraFin} style={{ flex: 1 }} />
+              <CampoHora etiqueta="Hora de inicio" valor={horaInicio} onCambiar={setHoraInicio} style={{ flex: 1, minWidth: 140 }} />
+              <CampoHora etiqueta="Fin estimado (opcional)" valor={horaFin} onCambiar={setHoraFin} permitirVacio style={{ flex: 1, minWidth: 140 }} />
             </Fila>
             <TextInput mode="outlined" dense label="Observaciones" multiline value={obs} onChangeText={setObs} />
           </ScrollView>
