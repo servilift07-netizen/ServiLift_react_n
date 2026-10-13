@@ -384,6 +384,7 @@ def datos_equipo(id_inspeccion: int, datos: EquipoDatosIn, db: Session = Depends
     snapshot = json.loads(insp.datos_equipo_json or "{}")
     snapshot["equipo"] = fila(equipo, CAMPOS_EQUIPO)
     insp.datos_equipo_json = json.dumps(snapshot, ensure_ascii=False)
+    precargar_no_aplica(db, insp)  # la profundidad de foso decide si aplican algunos ítems
     insp.fecha_sincronizacion = ahora()
     db.commit()
     return _detalle(db, insp)

@@ -274,6 +274,9 @@ NOTA: Se considera, aceptable tener un tipo de amarre para la cabina y otro dist
 (168,1,11,168,'IT-168','La iluminación de los accesos es menor a 50 lux a 1 m del piso y 1 m de la puerta de acceso para percibir la presencia de la cabina, si esta no cuenta con luz.','Obligación de medida: registrar el valor medido, no se permiten estimaciones.','LEVE',1,1,168),
 (169,1,11,169,'IT-169','Cuando un ascensor queda entre pisos o en el túnel, la distancia máxima entre la pisadera de cabina y el muro no es mayor a 125mm','Obligación de medida: registrar el valor medido, no se permiten estimaciones.','LEVE',1,0,169);
 
+-- Ítem 12 (foso >= 1,50 m sin escalera): no aplica si el foso mide menos de 1500 mm
+UPDATE checklist_item SET foso_minimo_mm = 1500 WHERE id_norma = 1 AND numero = 12;
+
 -- Reglas de 'aplica' por variante, tomadas de las fórmulas "NO APLICA" de la plantilla de informe 2012.
 -- Un ítem aplica solo si, para cada tipo de variante con reglas, la opción elegida está en su lista.
 INSERT INTO checklist_item_variante (id_item,id_variante_opcion)

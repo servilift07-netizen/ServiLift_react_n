@@ -378,6 +378,7 @@ CREATE TABLE checklist_item (
   requiere_foto_medicion TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Va en la hoja de evidencia fotográfica de equipos de medición',
   plazo_dias            INT NULL COMMENT 'Plazo propio de corrección; si es NULL se usa el de su calificación en la norma',
   unidad_medida         VARCHAR(20) NULL COMMENT 'mm, lux, m/s, kg, V...',
+  foso_minimo_mm        INT NULL COMMENT 'Solo aplica si la profundidad de foso registrada es >= este valor',
   obligatorio           TINYINT(1) NOT NULL DEFAULT 1,
   orden                 INT NOT NULL DEFAULT 0,
   activo                TINYINT(1) NOT NULL DEFAULT 1,
@@ -734,6 +735,7 @@ LEFT JOIN certificado cer ON cer.id_certificado = (
 -- ---------------------------------------------------------------------
 -- 15. Ítems que aplican a cada inspección según su norma y sus variantes
 --     aplica = 0 -> se precarga como NO_APLICA (el inspector puede cambiarlo)
+--     También no aplica un ítem con foso_minimo_mm si el foso registrado es menos profundo
 -- ---------------------------------------------------------------------
 CREATE OR REPLACE VIEW v_inspeccion_item_aplica AS
 SELECT
@@ -753,7 +755,8 @@ SELECT
                                    AND iv.id_inspeccion = ins.id_inspeccion
         WHERE v2.id_item = i.id_item
           AND o2.id_variante_tipo = o.id_variante_tipo)
-  ) THEN 0 ELSE 1 END AS aplica
+  ) OR (i.foso_minimo_mm IS NOT NULL AND ins.profundidad_foso_mm < i.foso_minimo_mm)
+  THEN 0 ELSE 1 END AS aplica
 FROM inspeccion ins
 JOIN checklist_item i ON i.id_norma = ins.id_norma
 WHERE i.activo = 1;
@@ -765,4 +768,4 @@ WHERE i.activo = 1;
 CREATE TABLE alembic_version (
   version_num VARCHAR(32) NOT NULL PRIMARY KEY
 ) ENGINE=InnoDB;
-INSERT INTO alembic_version (version_num) VALUES ('0002_reglas_no_aplica');
+INSERT INTO alembic_version (version_num) VALUES ('0003_foso_minimo');

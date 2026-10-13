@@ -56,11 +56,12 @@ Además `RECHAZADO` y `ANULADO`. Cada cambio queda en `historial_estado`.
   última programación, inspección, informe de 1ª y de 2ª visita y certificado.
 - `v_inspeccion_item_aplica`: qué ítems de la norma de cada inspección aplican según sus variantes. Las reglas
   (`checklist_item_variante`) salen de las fórmulas "NO APLICA" de la plantilla de informe 2012: un ítem aplica
-  solo si, en cada tipo de variante con reglas, la opción elegida está en su lista.
+  solo si, en cada tipo de variante con reglas, la opción elegida está en su lista. Además, un ítem con
+  `foso_minimo_mm` (el 12) no aplica si el foso registrado por el inspector es menos profundo.
 
 ## Migraciones (Alembic)
 
-La base creada con estos scripts queda en la última revisión (`0002_reglas_no_aplica`). Una base creada
+La base creada con estos scripts queda en la última revisión (`0003_foso_minimo`). Una base creada
 antes se pone al día con `alembic upgrade head`. Para cambios futuros, desde
 `servilift-backend` con el entorno activado:
 

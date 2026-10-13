@@ -319,6 +319,7 @@ class ChecklistItem(Base):
     requiere_foto_medicion = Column(Boolean, nullable=False, default=False)
     plazo_dias = Column(Integer)
     unidad_medida = Column(String(20))
+    foso_minimo_mm = Column(Integer)
     obligatorio = Column(Boolean, nullable=False, default=True)
     orden = Column(Integer, nullable=False, default=0)
     activo = Column(Boolean, nullable=False, default=True)

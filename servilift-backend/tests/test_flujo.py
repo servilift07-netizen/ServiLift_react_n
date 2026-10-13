@@ -105,6 +105,11 @@ def primera_visita(H, id_prog, id_ce, nc_numeros):
            for t in cat]
     d = ok(c.put(f"/inspecciones/{iid}/variantes", headers=H["INSPECTOR"], json=sel))
     assert d["resumen"]["no_aplica"] == 35, d["resumen"]  # según las fórmulas de la plantilla
+    # Ítem 12: con foso de menos de 1500 mm no aplica; al corregir la medida vuelve a aplicar
+    d = ok(c.put(f"/inspecciones/{iid}/equipo", headers=H["INSPECTOR"], json={"profundidad_foso_mm": 1200}))
+    assert d["resumen"]["no_aplica"] == 36, d["resumen"]
+    d = ok(c.put(f"/inspecciones/{iid}/equipo", headers=H["INSPECTOR"], json={"profundidad_foso_mm": 1600}))
+    assert d["resumen"]["no_aplica"] == 35, d["resumen"]
     chk = ok(c.get(f"/inspecciones/{iid}/checklist", headers=H["INSPECTOR"]))
     items = [it for cg in chk["categorias"] for it in cg["items"]]
     assert len(items) == 169 and chk["norma"] == "NTC 5926-1:2012"
