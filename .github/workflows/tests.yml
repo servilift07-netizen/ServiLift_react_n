@@ -1,11 +1,12 @@
-# Corre las pruebas unitarias de la app y del backend en cada push a main y en cada pull request.
+# Corre las pruebas unitarias de la app y del backend en cada push a main o a la rama de versión
+# (version-2.1) y en cada pull request.
 # El umbral de cobertura vive en la configuración de cada parte (vitest.config.mts y pyproject.toml):
 # si la cobertura baja, el mismo comando que se usa en local falla y el job queda en rojo.
 name: tests
 
 on:
   push:
-    branches: [main]
+    branches: [main, version-2.1]
   pull_request:
 
 jobs:
