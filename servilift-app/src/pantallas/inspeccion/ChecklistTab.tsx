@@ -22,15 +22,20 @@ const FONDO_RESULTADO: Record<string, string> = { CUMPLE: '#D4EDDA', NO_CUMPLE: 
 const SIN_FOTOS: { id: string; uri: string }[] = [];
 const FILTROS = [['TODOS', 'Todos'], ['PENDIENTES', 'Pendientes'], ['NO_CUMPLE', 'No cumple'], ['MEDICION', 'Con medición']] as const;
 
-export default function ChecklistTab({ idInspeccion, editable, segundaVisita }: {
+export default function ChecklistTab({ idInspeccion, editable, segundaVisita, filtro: filtroExterno, onFiltro }: {
   idInspeccion: number;
   editable: boolean;
   segundaVisita: boolean;
+  /** TODOS, PENDIENTES, NO_CUMPLE o MEDICION; lo maneja la pantalla para poder abrir el checklist ya filtrado */
+  filtro?: string;
+  onFiltro?: (f: string) => void;
 }) {
+  const [filtroPropio, setFiltroPropio] = useState('TODOS');
+  const filtro = filtroExterno ?? filtroPropio;
+  const setFiltro = onFiltro ?? setFiltroPropio;
   const c = useCarga<Checklist>(() => Api.get(`/inspecciones/${idInspeccion}/checklist`), [idInspeccion],
     { intervalo: null, cache: clavesCache.checklist(idInspeccion) });
   const sync = useSincronizacion();
-  const [filtro, setFiltro] = useState<string>('TODOS');
   // Solo una sección abierta a la vez; al abrir otra, la anterior se cierra y se baja hasta la nueva
   const [abierta, setAbierta] = useState<number | null>(null);
   const scroll = useRef<ScrollView>(null);

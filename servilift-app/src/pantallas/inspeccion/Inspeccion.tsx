@@ -31,6 +31,7 @@ export default function Inspeccion() {
   const d = useDialogos();
   const ins = useSafeAreaInsets();
   const [pestana, setPestana] = useState('datos');
+  const [filtro, setFiltro] = useState('TODOS');
   const c = useCarga<any>(() => Api.get(`/inspecciones/${id}`), [id], { intervalo: 60000, cache: clavesCache.inspeccion(id) });
 
   // Firmas, variantes y datos del informe que llegan al servidor actualizan el encabezado
@@ -49,6 +50,18 @@ export default function Inspeccion() {
   const equipo = i.datos_equipo?.equipo ?? {};
   const edificio = i.datos_equipo?.edificio ?? {};
 
+  // Al cerrar el aviso de "faltan datos", abre donde está lo primero que falta
+  const irAlPendiente = (p: string) => {
+    const destinos: [RegExp, string, string?][] = [
+      [/variantes/i, 'datos'], [/sin calificar/i, 'checklist', 'PENDIENTES'], [/medida/i, 'checklist', 'MEDICION'],
+      [/sin foto/i, 'checklist', 'NO_CUMPLE'], [/corregido/i, 'checklist'], [/firma/i, 'firmas'], [/fotogr/i, 'fotos'],
+    ];
+    const destino = destinos.find(([re]) => re.test(p));
+    if (!destino) return;
+    if (destino[2]) setFiltro(destino[2]);
+    setPestana(destino[1]);
+  };
+
   const finalizar = async () => {
     if (pendientes.length) {
       sync.sincronizar();
@@ -66,6 +79,7 @@ export default function Inspeccion() {
     }
     if (!val.puede_finalizar) {
       await d.alerta('Faltan datos para finalizar', val.pendientes.map((p: string) => `• ${p}`).join('\n'));
+      irAlPendiente(val.pendientes[0] ?? '');
       return;
     }
     if (!(await d.confirmar(`Finalizar ${segunda ? 'segunda visita' : 'inspección'}`,
@@ -108,7 +122,8 @@ export default function Inspeccion() {
       </View>
       <View style={{ flex: 1 }}>
         {pestana === 'datos' && <DatosTab insp={i} editable={editable && !segunda} fijar={c.fijar} />}
-        {pestana === 'checklist' && <ChecklistTab idInspeccion={id} editable={editable} segundaVisita={segunda} />}
+        {pestana === 'checklist' && <ChecklistTab idInspeccion={id} editable={editable} segundaVisita={segunda}
+          filtro={filtro} onFiltro={setFiltro} />}
         {pestana === 'fotos' && <FotosTab idInspeccion={id} editable={editable} />}
         {pestana === 'firmas' && <FirmasTab insp={i} editable={editable} />}
       </View>
