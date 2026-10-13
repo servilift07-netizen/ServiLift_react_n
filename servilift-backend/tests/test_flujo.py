@@ -57,6 +57,11 @@ def login(correo):
     return {"Authorization": f"Bearer {t['access_token']}"}
 
 
+def en_inicio(headers, enlace):
+    """¿La notificación más reciente con ese enlace sigue pendiente (aparece en el inicio)?"""
+    return next(n["vigente"] for n in ok(c.get("/notificaciones", headers=headers)) if n["enlace"] == enlace)
+
+
 def png():
     img = Image.new("RGB", (300, 120), "white")
     for x in range(20, 280):
@@ -249,10 +254,13 @@ def main():
     assert iid == iid_prev  # el mismo servicio no abre una segunda "primera visita"
 
     # 5. Director técnico: devuelve, el inspector corrige, aprueba (informe de 1ª visita NO CONFORME)
+    assert en_inicio(H["DIRECTOR_TECNICO"], f"/informes/{inf1['id_informe']}") is True  # por revisar
     ok(c.post(f"/informes/{inf1['id_informe']}/devolver", headers=H["DIRECTOR_TECNICO"], json={"observaciones": "Falta foto del foso"}))
     assert ok(c.get(f"/inspecciones/{iid}", headers=H["INSPECTOR"]))["estado"] == "DEVUELTA"
+    assert en_inicio(H["INSPECTOR"], f"/inspecciones/{iid}") is True  # el devuelto aparece en su inicio
     subir_foto(H["INSPECTOR"], iid, "foso.jpg")
     ok(c.post(f"/inspecciones/{iid}/finalizar", headers=H["INSPECTOR"]))
+    assert en_inicio(H["INSPECTOR"], f"/inspecciones/{iid}") is False  # ya pasó al director: sale del inicio
     assert c.get(f"/informes/{inf1['id_informe']}", headers=H["CLIENTE"]).status_code == 404  # aún no visible
     vp = ok(c.get(f"/informes/{inf1['id_informe']}/vista-previa", headers=H["DIRECTOR_TECNICO"]))
     assert c.get(vp["url"]).content[:4] == b"%PDF"
@@ -262,6 +270,7 @@ def main():
                   json={"firma_base64": png(), "concepto": "CONFORME"}).status_code == 409  # tiene no conformidades
     apr1 = ok(c.post(f"/informes/{inf1['id_informe']}/aprobar", headers=H["DIRECTOR_TECNICO"], json={"firma_base64": png()}))
     assert apr1["estado"] == "APROBADO" and apr1["concepto"] == "NO_CONFORME" and apr1["numero_visita"] == 1, apr1
+    assert en_inicio(H["DIRECTOR_TECNICO"], f"/informes/{inf1['id_informe']}") is False  # ya revisado
     assert (apr1["total_leves"], apr1["total_graves"], apr1["total_muy_graves"], apr1["total_no_aplica"]) == (1, 1, 1, 35), apr1
     assert ok(c.get(f"/informes/{inf1['id_informe']}/pdf", headers=H["CLIENTE"])).content[:4] == b"%PDF"
 
