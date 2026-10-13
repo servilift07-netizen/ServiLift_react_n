@@ -768,4 +768,4 @@ WHERE i.activo = 1;
 CREATE TABLE alembic_version (
   version_num VARCHAR(32) NOT NULL PRIMARY KEY
 ) ENGINE=InnoDB;
-INSERT INTO alembic_version (version_num) VALUES ('0003_foso_minimo');
+INSERT INTO alembic_version (version_num) VALUES ('0004_parametros_recorrido');

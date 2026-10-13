@@ -61,7 +61,7 @@ Además `RECHAZADO` y `ANULADO`. Cada cambio queda en `historial_estado`.
 
 ## Migraciones (Alembic)
 
-La base creada con estos scripts queda en la última revisión (`0003_foso_minimo`). Una base creada
+La base creada con estos scripts queda en la última revisión (`0004_parametros_recorrido`). Una base creada
 antes se pone al día con `alembic upgrade head`. Para cambios futuros, desde
 `servilift-backend` con el entorno activado:
 

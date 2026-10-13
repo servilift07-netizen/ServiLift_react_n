@@ -27,7 +27,9 @@ INSERT INTO parametro (clave,valor,descripcion) VALUES
 ('TEXTO_ATESTACION','El informe final refleja la declaración emitida por la dirección técnica, garantizando el cumplimiento de los requisitos del numeral 6, "Lista de defectos y su calificación", de la norma NTC 5926-1. La supervisión y atestación de los resultados puede incluir variaciones por hallazgos adicionales identificados en los registros fotográficos o en las listas de chequeo aportadas por los inspectores. Si se identifican, se incluyen en el informe final antes de su emisión o, de ser necesario, se reprograma una nueva inspección.','Texto de atestación del informe'),
 ('CONVENCION_RESULTADOS','C = Cumple · NC = No cumple · NA = No aplica',NULL),
 ('CERTIFICADO_VIGENCIA_MESES','12',NULL),
-('FOTOS_MAX_POR_EQUIPO','150',NULL);
+('FOTOS_MAX_POR_EQUIPO','150',NULL),
+('RECORRIDO_M_POR_PARADA','2.2','Metros aproximados por parada para calcular el recorrido'),
+('RECORRIDO_SOBRE_RECORRIDO_M','2.5','Metros de sobre recorrido que se suman al recorrido calculado');
 
 -- Norma vigente: NTC 5926-1:2012 (las ediciones 2021/2026 y las partes 2 y 3 se agregan como filas nuevas)
 INSERT INTO norma (id_norma,codigo,parte,version,nombre,titulo_informe,plazo_dias_leve,plazo_dias_grave,plazo_dias_muy_grave,vigente) VALUES

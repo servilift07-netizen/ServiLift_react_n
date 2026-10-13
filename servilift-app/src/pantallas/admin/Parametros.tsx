@@ -17,6 +17,8 @@ const ETIQUETAS: Record<string, string> = {
   TEXTO_ATESTACION: 'Texto de atestación',
   CONVENCION_RESULTADOS: 'Convención de resultados',
   FOTOS_MAX_POR_EQUIPO: 'Máximo de fotos por equipo',
+  RECORRIDO_M_POR_PARADA: 'Recorrido: metros por parada',
+  RECORRIDO_SOBRE_RECORRIDO_M: 'Recorrido: metros de sobre recorrido',
 };
 
 export default function Parametros() {

@@ -144,6 +144,10 @@ def checklist(id_norma: int | None = None, db: Session = Depends(get_db), _: Usu
 # ============================================
 # PARÁMETROS
 # ============================================
+PARAMETROS_NUMERICOS = {"CERTIFICADO_VIGENCIA_MESES", "FOTOS_MAX_POR_EQUIPO", "RECORRIDO_M_POR_PARADA",
+                        "RECORRIDO_SOBRE_RECORRIDO_M"}
+
+
 @router.get("/catalogos/parametros")
 def parametros(db: Session = Depends(get_db), _: Usuario = Depends(get_current_user)):
     return {p.clave: p.valor for p in db.query(Parametro).all()}
@@ -155,6 +159,13 @@ def actualizar_parametro(clave: str, datos: ParametroIn, db: Session = Depends(g
     p = db.get(Parametro, clave)
     if not p:
         raise HTTPException(404, "Parámetro no encontrado")
+    if clave in PARAMETROS_NUMERICOS:
+        try:
+            if float(datos.valor.replace(",", ".")) < 0:
+                raise ValueError
+        except ValueError:
+            raise HTTPException(400, "El valor debe ser un número mayor o igual a 0 (ej. 2.2)")
+        datos.valor = datos.valor.replace(",", ".")
     p.valor = datos.valor
     db.commit()
     return {clave: p.valor}

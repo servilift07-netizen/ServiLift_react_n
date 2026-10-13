@@ -9,6 +9,7 @@ export const clavesCache = {
   fotos: (id: number) => `fotos:${id}`,
   variantes: (parte: number) => `variantes:${parte}`,
   instrumentos: 'instrumentos',
+  parametros: 'parametros',
 };
 
 export async function precargarInspeccion(id: number): Promise<boolean> {
@@ -23,12 +24,14 @@ export async function precargarInspeccion(id: number): Promise<boolean> {
       guardarCache(clavesCache.checklist(id), checklist),
       guardarCache(clavesCache.fotos(id), fotos),
     ]);
-    const [variantes, instrumentos] = await Promise.all([
+    const [variantes, instrumentos, parametros] = await Promise.all([
       Api.get('/catalogos/variantes', { parte: insp.parte_norma ?? 1 }),
       Api.get('/instrumentos'),
+      Api.get('/catalogos/parametros'),
     ]);
     await guardarCache(clavesCache.variantes(insp.parte_norma ?? 1), variantes);
     await guardarCache(clavesCache.instrumentos, instrumentos);
+    await guardarCache(clavesCache.parametros, parametros);
     return true;
   } catch {
     return false;
