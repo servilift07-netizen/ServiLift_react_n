@@ -8,7 +8,14 @@ asesor registra al cliente y lo cotiza hasta que el cliente descarga el certific
 - **Asesores, programación, director técnico, certificados y administrador**: la misma app en el **navegador**.
 - **Cliente**: portal para aprobar cotizaciones y descargar informes y certificados.
 
-Guía paso a paso: [GUIA_EJECUCION.md](GUIA_EJECUCION.md).
+Guía paso a paso: [GUIA_EJECUCION.md](GUIA_EJECUCION.md) · Instalación en un PC nuevo: `instalar.ps1` ·
+Documentación completa (proyecto y bootcamp de pruebas): https://github.com/servilift07-netizen/documentacion
+
+## Versiones
+
+- `main`: versión 2.0 estable (etiqueta `v2.0`). No se trabaja directo sobre ella.
+- `version-2.1`: rama de la versión en curso. Todo cambio entra por pull request desde una rama `test/semana-XX`
+  o de funcionalidad, con el CI en verde.
 
 ## Arquitectura
 
@@ -27,6 +34,7 @@ Guía paso a paso: [GUIA_EJECUCION.md](GUIA_EJECUCION.md).
 | Base de datos | MariaDB 10.4 (XAMPP) / MySQL 8, migraciones con Alembic |
 | Backend | Python 3.13, FastAPI, SQLAlchemy 2, Pydantic 2, JWT, bcrypt, ReportLab, Pillow |
 | App | Expo SDK 57, React Native, TypeScript, Expo Router, React Native Paper |
+| Pruebas | Vitest (app), pytest + pytest-cov (backend), Playwright (E2E), GitHub Actions (CI con umbral de cobertura) |
 
 ## Reglas del negocio
 
@@ -61,7 +69,19 @@ Guía paso a paso: [GUIA_EJECUCION.md](GUIA_EJECUCION.md).
 
 ```
 servi lift react/
+├── .github/             Workflow de CI (tests.yml) y plantilla de pull request
 ├── database/            Esquema v2, catálogos y datos de prueba (ver database/README.md)
-├── servilift-backend/   API FastAPI, PDF, pruebas y migraciones Alembic
-└── servilift-app/       App Expo (celular y navegador)
+├── docs/                Matriz de rotación de capas y cobertura semanal (bootcamp de pruebas)
+├── e2e/                 Pruebas de extremo a extremo con Playwright
+├── servilift-backend/   API FastAPI, PDF, pruebas (unitarias e integración) y migraciones Alembic
+├── servilift-app/       App Expo (celular y navegador) y sus pruebas unitarias
+└── instalar.ps1         Instalación en un PC nuevo
+```
+
+## Pruebas
+
+```
+cd servilift-app      && npm test                       # unitarias + cobertura de la app
+cd servilift-backend  && venv\Scripts\python -m pytest  # unitarias + cobertura del backend
+cd e2e                && pnpm test                      # E2E (backend 8010 + app 8091, base servilift_v2_prueba)
 ```
