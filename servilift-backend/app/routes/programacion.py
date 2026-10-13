@@ -12,6 +12,7 @@ from app.models import Cotizacion, CotizacionEquipo, Programacion, ProgramacionE
 from app.routes.serializers import cot_equipo_dict, cotizacion_dict, programacion_dict
 from app.security import INSPECTOR, PROGRAMACION, get_current_user, require_roles
 from app.services.flujo import cambiar_estado, notificar, registrar_evento
+from app.tiempo import hoy
 
 router = APIRouter(prefix="/programacion", tags=["Programación"])
 
@@ -49,6 +50,13 @@ def _inspector(db: Session, id_usuario: int) -> Usuario:
     if not u:
         raise HTTPException(400, "El usuario seleccionado no es un inspector activo")
     return u
+
+
+def _validar_horario(fecha_programada: date | None, hora_inicio: time | None, hora_fin: time | None):
+    if fecha_programada and fecha_programada < hoy():
+        raise HTTPException(400, "No se puede programar una visita en un día pasado")
+    if hora_inicio and hora_fin and hora_fin <= hora_inicio:
+        raise HTTPException(400, "El fin estimado debe ser después de la hora de inicio")
 
 
 def _texto_visita(p: Programacion) -> str:
@@ -96,6 +104,7 @@ def programar(datos: ProgramacionIn, db: Session = Depends(get_db),
     if not cot:
         raise HTTPException(404, "Cotización no encontrada")
     inspector = _inspector(db, datos.id_inspector)
+    _validar_horario(datos.fecha_programada, datos.hora_inicio, datos.hora_fin_estimada)
     if datos.tipo_visita not in ESTADO_POR_VISITA:
         raise HTTPException(400, "tipo_visita debe ser PRIMERA o SEGUNDA")
     requerido = ESTADO_POR_VISITA[datos.tipo_visita]
@@ -130,6 +139,7 @@ def reprogramar(id_programacion: int, datos: ReprogramarIn, db: Session = Depend
     p = db.get(Programacion, id_programacion)
     if not p or p.estado in ("CANCELADA", "REALIZADA"):
         raise HTTPException(404, "Programación no encontrada o ya cerrada")
+    _validar_horario(datos.fecha_programada, datos.hora_inicio or p.hora_inicio, datos.hora_fin_estimada or p.hora_fin_estimada)
     anterior = p.inspector
     if datos.id_inspector and datos.id_inspector != p.id_inspector:
         p.id_inspector = _inspector(db, datos.id_inspector).id_usuario
