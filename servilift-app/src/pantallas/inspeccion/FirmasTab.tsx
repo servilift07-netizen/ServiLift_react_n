@@ -14,7 +14,7 @@ import { useSesion } from '@/sesion/SesionContext';
 import { Colores, fechaHora } from '@/tema';
 import { firmasPendientes } from './pendientes';
 
-// Cargo fijo de quienes no son del edificio (el servidor lo vuelve a poner)
+// Cargo sugerido; quien firma puede ser otra persona (supervisor, guarda, auxiliar...) y se puede cambiar
 const CARGO: Record<string, string> = { INSPECTOR: 'Inspector', TECNICO_MANTENIMIENTO: 'Técnico de mantenimiento' };
 
 const TIPOS: [string, string, Icono][] = [
@@ -45,15 +45,15 @@ export default function FirmasTab({ insp, editable }: { insp: any; editable: boo
 
   const firmar = async (tipo: string, titulo: string, visita: number) => {
     const ed = insp.datos_equipo?.edificio ?? {};
-    // Inspector: sus datos de usuario, sin cambios. Técnico: nombre y empresa, cargo fijo y sin documento.
-    // Representante del edificio: quien reciba la visita, todo editable.
+    // Inspector: el documento viene de su usuario y no se cambia. Técnico: sin documento.
+    // Nombre y cargo siempre editables (a veces firma otra persona: supervisor, guarda, auxiliar...).
     const campos: Campo[] = tipo === 'INSPECTOR' ? [
-      { clave: 'nombre', etiqueta: 'Nombre completo', soloLectura: true },
+      { clave: 'nombre', etiqueta: 'Nombre completo', obligatorio: true },
       { clave: 'documento', etiqueta: 'Documento', soloLectura: true },
-      { clave: 'cargo', etiqueta: 'Cargo', soloLectura: true },
+      { clave: 'cargo', etiqueta: 'Cargo' },
     ] : tipo === 'TECNICO_MANTENIMIENTO' ? [
       { clave: 'nombre', etiqueta: 'Nombre completo', obligatorio: true },
-      { clave: 'cargo', etiqueta: 'Cargo', soloLectura: true },
+      { clave: 'cargo', etiqueta: 'Cargo' },
       { clave: 'empresa', etiqueta: 'Empresa' },
     ] : [
       { clave: 'nombre', etiqueta: 'Nombre completo', obligatorio: true },
