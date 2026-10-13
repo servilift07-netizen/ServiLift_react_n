@@ -82,6 +82,6 @@ servi lift react/
 
 ```
 cd servilift-app      && npm test                       # unitarias + cobertura de la app
-cd servilift-backend  && venv\Scripts\python -m pytest  # unitarias + cobertura del backend
+cd servilift-backend  && uv run pytest                 # unitarias + cobertura del backend
 cd e2e                && pnpm test                      # E2E (backend 8010 + app 8091, base servilift_v2_prueba)
 ```

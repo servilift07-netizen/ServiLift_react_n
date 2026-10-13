@@ -4,7 +4,7 @@
 #   powershell -ExecutionPolicy Bypass -File .\instalar.ps1                  # dependencias y archivos .env
 #   powershell -ExecutionPolicy Bypass -File .\instalar.ps1 -ConBaseDeDatos  # además crea las bases (MySQL de XAMPP encendido)
 #
-# Se puede ejecutar varias veces: lo que ya existe (venv, .env, bases) no se toca.
+# Se puede ejecutar varias veces: lo que ya existe (.venv, .env, bases) no se toca.
 
 param(
     [switch]$ConBaseDeDatos,
@@ -39,14 +39,19 @@ if (-not (Get-Command pnpm -ErrorAction SilentlyContinue)) {
     Paso "Instalando pnpm (gestor de paquetes de las pruebas E2E)"
     Ejecutar { npm install -g pnpm@10.34.5 } "instalar pnpm"
 }
-Write-Host "   $(python --version) · Node $(node --version) · pnpm $(pnpm --version)"
+if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
+    Paso "Instalando uv (maneja Python y las dependencias del backend)"
+    Ejecutar { powershell -ExecutionPolicy ByPass -NoProfile -c "irm https://astral.sh/uv/install.ps1 | iex" } "instalar uv"
+    $env:Path = "$env:USERPROFILE\.local\bin;$env:Path"
+}
+Write-Host "   $(python --version) · $(uv --version) · Node $(node --version) · pnpm $(pnpm --version)"
 
-Paso "Backend (servilift-backend): entorno virtual y dependencias"
+Paso "Backend (servilift-backend): dependencias con uv"
 $backend = Join-Path $raiz "servilift-backend"
 Push-Location $backend
 try {
-    if (-not (Test-Path "venv")) { Ejecutar { python -m venv venv } "crear el entorno virtual" }
-    Ejecutar { .\venv\Scripts\python.exe -m pip install --disable-pip-version-check -q -r requirements-dev.txt } "instalar dependencias del backend"
+    # Crea .venv e instala exactamente lo de uv.lock (incluye las herramientas de pruebas)
+    Ejecutar { uv sync --locked } "instalar dependencias del backend"
     CopiarEnv $backend
 } finally { Pop-Location }
 
@@ -87,9 +92,9 @@ if ($ConBaseDeDatos) {
 
 Paso "Listo"
 Write-Host @"
-   Backend : cd servilift-backend ; venv\Scripts\activate ; uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+   Backend : cd servilift-backend ; uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
    App web : cd servilift-app ; npx expo start --web
    Pruebas : cd servilift-app ; npm test            (unitarias de la app + cobertura)
-             cd servilift-backend ; venv\Scripts\python -m pytest   (unitarias del backend + cobertura)
+             cd servilift-backend ; uv run pytest   (unitarias del backend + cobertura)
              cd e2e ; pnpm test                     (E2E: levanta backend 8010 y app 8091 con la base de prueba)
 "@

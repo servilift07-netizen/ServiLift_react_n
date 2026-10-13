@@ -5,12 +5,14 @@ API de la certificación de ascensores NTC 5926: clientes, cotizaciones, program
 
 ## Puesta en marcha
 
+Con [uv](https://docs.astral.sh/uv/) (las dependencias están en `pyproject.toml` y fijadas en `uv.lock`):
+
 ```bash
-python -m venv venv
-venv\Scripts\activate
-pip install -r requirements.txt
+uv sync                     # crea .venv e instala todo (también pytest)
 copy .env.example .env      # solo si necesita otra base de datos; sin .env usa los valores por defecto
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+uv run pytest               # unitarias + cobertura
+uv add paquete==x.y.z       # agrega una dependencia (actualiza pyproject.toml y uv.lock)
 ```
 La base se crea con los scripts de `../database`. Documentación interactiva: http://localhost:8000/docs
 

@@ -26,12 +26,13 @@ pruebas `servilift_v2_prueba`. No modifica nada que ya exista. Después siga en 
    ```
 
 ## 2. Backend (API)
+El backend se maneja con **uv** (instala Python y las dependencias exactas de `uv.lock`). Si no lo tiene:
+`powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"` y abra una terminal nueva.
+
 Solo la primera vez:
 ```
 cd "C:\Users\PC\Documents\Sena\LiftSafe\servi lift react\servilift-backend"
-python -m venv venv
-venv\Scripts\activate
-pip install -r requirements.txt
+uv sync
 copy .env.example .env
 ```
 No hay que configurar ninguna clave secreta: el `.env` solo hace falta si la base de datos no es la de XAMPP por defecto.
@@ -39,8 +40,7 @@ No hay que configurar ninguna clave secreta: el `.env` solo hace falta si la bas
 Cada vez que vaya a trabajar:
 ```
 cd "C:\Users\PC\Documents\Sena\LiftSafe\servi lift react\servilift-backend"
-venv\Scripts\activate
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 Compruebe http://localhost:8000 → "ServiLift API funcionando". Documentación: http://localhost:8000/docs
 
@@ -91,8 +91,8 @@ cada ítem "Guardado en el teléfono". Al volver la señal se envían solos (men
 | Qué | Dónde | Comando | Necesita |
 |---|---|---|---|
 | Unitarias de la app + cobertura | `servilift-app` | `npm test` | Nada (ni backend ni base) |
-| Unitarias del backend + cobertura | `servilift-backend` | `venv\Scripts\python -m pytest` | Nada (ni base ni red) |
-| Integración (flujo completo por la API) | `servilift-backend` | `$env:DB_NAME="servilift_v2_prueba"` (PowerShell) y luego `venv\Scripts\python -m pytest -m integracion --no-cov` | MySQL encendido |
+| Unitarias del backend + cobertura | `servilift-backend` | `uv run pytest` | Nada (ni base ni red) |
+| Integración (flujo completo por la API) | `servilift-backend` | `$env:DB_NAME="servilift_v2_prueba"` (PowerShell) y luego `uv run pytest -m integracion --no-cov` | MySQL encendido |
 | E2E con Playwright | `e2e` | `pnpm test` (`pnpm test:ui` paso a paso, `pnpm report` reporte) | MySQL encendido |
 
 - Los comandos de unitarias fallan si la cobertura baja del umbral (`vitest.config.mts` y `pyproject.toml`).

@@ -1,15 +1,11 @@
 import { defineConfig, devices } from '@playwright/test';
-import path from 'node:path';
 
 // Puertos propios de las pruebas: no chocan con el backend (8000) ni con Expo (8081) del día a día.
 const frontPort = Number(process.env.FRONT_PORT ?? 8091);
 const apiPort = Number(process.env.API_PORT ?? 8010);
 
-// Python del entorno virtual del backend. En CI (o con otro entorno) se cambia con PYTHON.
-const pythonVenv = process.platform === 'win32'
-  ? path.join('venv', 'Scripts', 'python.exe')
-  : path.join('venv', 'bin', 'python');
-const python = process.env.PYTHON ?? pythonVenv;
+// El backend se levanta con uv (usa el .venv y el uv.lock del backend). Con PYTHON se puede usar otro intérprete.
+const backend = process.env.PYTHON ? `"${process.env.PYTHON}" -m uvicorn` : 'uv run uvicorn';
 
 export default defineConfig({
   testDir: './tests',
@@ -30,7 +26,7 @@ export default defineConfig({
   // La base servilift_v2_prueba se crea con database/01_schema.sql, 02_seed.sql y 03_datos_iniciales.sql.
   webServer: [
     {
-      command: `"${python}" -m uvicorn app.main:app --port ${apiPort}`,
+      command: `${backend} app.main:app --port ${apiPort}`,
       cwd: '../servilift-backend',
       url: `http://localhost:${apiPort}/`,
       env: { DB_NAME: process.env.DB_NAME ?? 'servilift_v2_prueba' },
