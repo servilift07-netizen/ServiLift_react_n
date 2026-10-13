@@ -256,6 +256,8 @@ def main():
     assert c.get(vp["url"]).content[:4] == b"%PDF"
     assert ok(c.get(f"/informes/{inf1['id_informe']}", headers=H["DIRECTOR_TECNICO"]))["estado"] == "PENDIENTE_REVISION"
     assert c.get(f"/informes/{inf1['id_informe']}/vista-previa", headers=H["CLIENTE"]).status_code == 403
+    assert c.post(f"/informes/{inf1['id_informe']}/aprobar", headers=H["DIRECTOR_TECNICO"],
+                  json={"firma_base64": png(), "concepto": "CONFORME"}).status_code == 409  # tiene no conformidades
     apr1 = ok(c.post(f"/informes/{inf1['id_informe']}/aprobar", headers=H["DIRECTOR_TECNICO"], json={"firma_base64": png()}))
     assert apr1["estado"] == "APROBADO" and apr1["concepto"] == "NO_CONFORME" and apr1["numero_visita"] == 1, apr1
     assert (apr1["total_leves"], apr1["total_graves"], apr1["total_muy_graves"], apr1["total_no_aplica"]) == (1, 1, 1, 35), apr1

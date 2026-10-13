@@ -196,6 +196,8 @@ def aprobar(id_informe: int, datos: AprobarIn, db: Session = Depends(get_db),
     if inf.numero_visita == 2 and datos.concepto and datos.concepto != calculado:
         raise HTTPException(409, "En la segunda visita el concepto lo define el cierre de hallazgos: es CONFORME "
                                  "solo si todos quedaron corregidos")
+    if calculado == "NO_CONFORME" and datos.concepto == "CONFORME":
+        raise HTTPException(409, "El equipo tiene no conformidades: el concepto no puede ser CONFORME")
 
     ahora_ = ahora()
     inf.id_director = usuario.id_usuario

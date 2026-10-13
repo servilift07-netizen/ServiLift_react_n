@@ -100,7 +100,8 @@ function Aprobar({ inf, cerrar }: { inf: any; cerrar: (ok: boolean) => void }) {
           <Text>{segunda
             ? `Segunda visita: ${r.corregidos} corregidos, ${r.no_corregidos} no corregidos de ${r.total_no_cumple} hallazgos.`
             : `Hallazgos: ${r.leves} leves, ${r.graves} graves, ${r.muy_graves} muy graves.`}</Text>
-          {segunda ? <EstadoChip estado={calculado} texto={`Concepto: ${etiqueta(calculado)}`} /> : (
+          {/* Con hallazgos (o en 2ª visita) el concepto no se elige: lo definen los resultados */}
+          {segunda || calculado === 'NO_CONFORME' ? <EstadoChip estado={calculado} texto={`Concepto: ${etiqueta(calculado)}`} /> : (
             <Selector etiqueta="Concepto" valor={concepto} onCambiar={(v) => v && setConcepto(v)}
               opciones={[{ valor: 'CONFORME', texto: 'Conforme' }, { valor: 'NO_CONFORME', texto: 'No conforme' }]} />
           )}
