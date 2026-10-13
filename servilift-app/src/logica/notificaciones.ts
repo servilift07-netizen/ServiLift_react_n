@@ -26,3 +26,15 @@ export function destinoNotificacion(enlace: string | null | undefined, rol: stri
       return null;
   }
 }
+
+/** Notificación tal como llega del backend; "vigente" es false cuando lo que avisa ya se atendió. */
+export type AvisoNotificacion = { vigente?: boolean };
+
+/**
+ * Lo que va en "Lo más reciente" del inicio: solo lo que sigue pendiente (p. ej. una inspección ya finalizada
+ * y enviada al director ya no aparece) y como máximo `max`. Si el backend no manda "vigente", se muestra.
+ */
+export function paraInicio<T extends AvisoNotificacion>(lista: readonly T[], max = 4): { visibles: T[]; hayMas: boolean } {
+  const pendientes = lista.filter((n) => n.vigente !== false);
+  return { visibles: pendientes.slice(0, max), hayMas: pendientes.length > max };
+}

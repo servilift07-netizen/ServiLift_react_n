@@ -6,16 +6,19 @@ from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import (
-    ChecklistCategoria, ChecklistItem, InstrumentoMedicion, Norma, Notificacion, Parametro, Usuario,
+    ChecklistCategoria, ChecklistItem, Informe, Inspeccion, InstrumentoMedicion, Norma, Notificacion, Parametro, Programacion,
+    ProgramacionEquipo, Usuario,
 )
 from app.routes.cotizaciones import norma_vigente
 from app.routes.serializers import fila, norma_dict
 from app.security import ADMIN, INSPECTOR, get_current_user, require_roles
 from app.services.checklist import tipos_de_variante
+from app.services.flujo import notificacion_vigente
 from app.services.reglas import numero_parametro
 
 router = APIRouter(tags=["Catálogos y notificaciones"])
@@ -198,8 +201,24 @@ def notificaciones(solo_no_leidas: bool = False, db: Session = Depends(get_db),
     q = db.query(Notificacion).filter(Notificacion.id_usuario_destino == usuario.id_usuario)
     if solo_no_leidas:
         q = q.filter(Notificacion.leida.is_(False))
-    return [fila(n, ["id_notificacion", "titulo", "mensaje", "tipo", "id_referencia", "enlace", "leida",
-                     "fecha_creacion"]) for n in q.order_by(Notificacion.id_notificacion.desc()).limit(100)]
+    lista = q.order_by(Notificacion.id_notificacion.desc()).limit(100).all()
+    ultimas = dict(db.query(ProgramacionEquipo.id_cotizacion_equipo, func.max(Programacion.id_programacion))
+                   .join(Programacion, Programacion.id_programacion == ProgramacionEquipo.id_programacion)
+                   .filter(Programacion.estado != "CANCELADA")
+                   .group_by(ProgramacionEquipo.id_cotizacion_equipo).all())
+
+    def vigente(n):
+        enlace, ref, rol = n.enlace or "", n.id_referencia, usuario.rol_codigo
+        if enlace == "/inspecciones/agenda" and ref:
+            return notificacion_vigente(n, rol, programacion=db.get(Programacion, ref), ultima_programacion_de=ultimas.get)
+        if enlace.startswith("/inspecciones/") and ref:
+            return notificacion_vigente(n, rol, inspeccion=db.get(Inspeccion, ref))
+        if enlace.startswith("/informes/") and ref:
+            return notificacion_vigente(n, rol, informe=db.get(Informe, ref))
+        return notificacion_vigente(n, rol)
+
+    return [{**fila(n, ["id_notificacion", "titulo", "mensaje", "tipo", "id_referencia", "enlace", "leida",
+                        "fecha_creacion"]), "vigente": vigente(n)} for n in lista]
 
 
 @router.put("/notificaciones/{id_notificacion}/leida")
