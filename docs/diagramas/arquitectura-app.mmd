@@ -1,0 +1,10 @@
+flowchart TB
+    R["app/ (Expo Router)<br/>login.tsx · (app)/_layout.tsx · una ruta por pantalla"] --> P
+    P["src/pantallas/<br/>por módulo: clientes, cotizaciones, programacion,<br/>inspeccion, informes, certificados, admin"] --> K["src/componentes/<br/>calendario, reloj, firma, gráficas, diálogos"]
+    P --> L["src/logica/<br/>funciones puras (estados, formatos, plazo,<br/>recorrido, checklist local): se prueban con Vitest"]
+    P --> H["src/hooks/useCarga.ts<br/>carga y caché por pantalla"]
+    P --> O["src/offline/<br/>cola persistente + motor de sincronización"]
+    P --> S["src/sesion/<br/>token y usuario (SecureStore en el celular,<br/>sessionStorage por pestaña en el navegador)"]
+    H --> API["src/api/cliente.ts<br/>fetch + JWT + errores"]
+    O --> API
+    API -->|HTTP| BE["API FastAPI"]

@@ -1,0 +1,28 @@
+sequenceDiagram
+    actor A as Asesor
+    actor C as Cliente
+    actor P as Programación
+    actor I as Inspector
+    actor D as Director técnico
+    actor E as Certificados
+
+    A->>C: Cotización enviada (CU-05)
+    C->>A: Aprueba (CU-06)
+    A->>P: Envía a programación (CU-07)
+    P->>I: Visita programada (CU-08)
+    I->>I: Inspección en campo, con o sin señal (CU-09, CU-10)
+    I->>D: Finaliza: informe 1V en revisión (CU-11)
+    alt Conforme
+        D->>E: Aprueba y firma: informe conforme (CU-12)
+        E->>C: Certificado enviado (CU-14)
+    else No conforme
+        D->>C: Informe no conforme con plazo de corrección
+        C->>P: Solicita 2ª visita dentro del plazo (CU-13)
+        P->>I: Programa la 2ª visita (CU-08)
+        I->>D: Informe 2V de cierre de hallazgos
+        alt Todo corregido
+            D->>E: Conforme → certificado (CU-14)
+        else Algo sin corregir
+            D->>A: Cerrado no conforme: requiere cotización nueva
+        end
+    end

@@ -1,0 +1,8 @@
+flowchart TB
+    A["main.py<br/>crea la app, CORS, registra routers, sirve /archivos con firma"] --> B
+    B["routes/*.py<br/>auth, usuarios, clientes, cotizaciones, programacion,<br/>inspecciones, informes, certificados, seguimiento, catalogos, dashboard"] --> C
+    B --> S["security.py<br/>PBKDF2, JWT, require_roles(...)"]
+    B --> Z["routes/serializers.py<br/>modelo → JSON"]
+    C["services/<br/>flujo.py · checklist.py · reglas.py · pdf.py · archivos.py"] --> D
+    D["models.py (SQLAlchemy)"] --> E["database.py<br/>engine + sesión por petición (get_db)"]
+    E --> F[("MariaDB")]

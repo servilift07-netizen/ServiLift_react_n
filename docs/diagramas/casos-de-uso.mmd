@@ -1,0 +1,30 @@
+flowchart LR
+    ADM(["Administrador"]) --- CU02([CU-02 Gestionar usuarios])
+    ADM --- CU03([CU-03 Configurar normas, parámetros e instrumentos])
+
+    ASE(["Asesor"]) --- CU04([CU-04 Registrar clientes, edificios y equipos])
+    ASE --- CU05([CU-05 Crear y enviar cotización])
+    ASE --- CU07([CU-07 Enviar a programación])
+    ASE --- CU13([CU-13 Solicitar segunda visita])
+    ASE --- CU15([CU-15 Consultar seguimiento y descargar documentos])
+
+    CLI(["Cliente"]) --- CU06([CU-06 Aprobar o rechazar cotización])
+    CLI --- CU13
+    CLI --- CU15
+
+    PRO(["Programación"]) --- CU08([CU-08 Programar visita])
+
+    INS(["Inspector"]) --- CU09([CU-09 Realizar inspección])
+    INS --- CU11([CU-11 Finalizar inspección])
+    CU09 -. incluye .-> CU10([CU-10 Trabajar sin señal])
+    CU11 -. incluye .-> CU10
+
+    DIR(["Director técnico"]) --- CU12([CU-12 Revisar y aprobar informe])
+    CU13 -. extiende .-> CU12
+
+    CER(["Certificados"]) --- CU14([CU-14 Elaborar y enviar certificado])
+
+    PUB(["Público sin sesión"]) --- CU16([CU-16 Verificar certificado por QR])
+
+    classDef actor fill:#fff,stroke:#333,stroke-width:2px
+    class ADM,ASE,CLI,PRO,INS,DIR,CER,PUB actor

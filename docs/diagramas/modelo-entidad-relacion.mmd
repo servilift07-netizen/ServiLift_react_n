@@ -1,0 +1,133 @@
+erDiagram
+    ROL ||--o{ USUARIO : "tiene"
+    CLIENTE |o--o{ USUARIO : "usuarios del portal"
+    USUARIO ||--o{ CLIENTE : "asesor"
+    CLIENTE ||--o{ EDIFICIO : "tiene"
+    EDIFICIO ||--o{ EQUIPO : "tiene"
+    EQUIPO ||--o{ EQUIPO_VARIANTE : "variantes declaradas"
+
+    CLIENTE ||--o{ COTIZACION : "recibe"
+    EDIFICIO ||--o{ COTIZACION : "para"
+    COTIZACION ||--|{ COTIZACION_EQUIPO : "incluye"
+    EQUIPO ||--o{ COTIZACION_EQUIPO : "se cotiza en"
+    NORMA ||--o{ COTIZACION_EQUIPO : "se inspecciona con"
+    COTIZACION_EQUIPO |o--o| COTIZACION_EQUIPO : "servicio anterior"
+    COTIZACION_EQUIPO ||--o{ HISTORIAL_ESTADO : "registra"
+
+    COTIZACION ||--o{ PROGRAMACION : "se agenda en"
+    USUARIO ||--o{ PROGRAMACION : "inspector"
+    PROGRAMACION ||--|{ PROGRAMACION_EQUIPO : "visita"
+    COTIZACION_EQUIPO ||--o{ PROGRAMACION_EQUIPO : "en"
+
+    NORMA ||--o{ CHECKLIST_CATEGORIA : "agrupa"
+    CHECKLIST_CATEGORIA ||--o{ CHECKLIST_ITEM : "contiene"
+    CHECKLIST_ITEM ||--o{ CHECKLIST_ITEM_VARIANTE : "aplica si"
+    VARIANTE_TIPO ||--o{ VARIANTE_OPCION : "opciones"
+    VARIANTE_OPCION ||--o{ CHECKLIST_ITEM_VARIANTE : ""
+
+    COTIZACION_EQUIPO ||--o| INSPECCION : "se inspecciona en"
+    PROGRAMACION ||--o{ INSPECCION : "1a y 2a visita"
+    INSPECCION ||--o{ INSPECCION_VARIANTE : "variantes elegidas"
+    INSPECCION ||--o{ INSPECCION_RESULTADO : "califica"
+    CHECKLIST_ITEM ||--o{ INSPECCION_RESULTADO : ""
+    INSPECCION ||--o{ INSPECCION_FOTO : "evidencia"
+    INSPECCION_RESULTADO |o--o{ INSPECCION_FOTO : "de un hallazgo"
+    INSPECCION ||--o{ INSPECCION_FIRMA : "firmas"
+    INSPECCION ||--o{ INSPECCION_MEDICION : "medidas"
+    INSPECCION ||--o{ INSPECCION_INSTRUMENTO : "usa"
+    INSTRUMENTO_MEDICION ||--o{ INSPECCION_INSTRUMENTO : ""
+
+    INSPECCION ||--|{ INFORME : "un informe por visita"
+    USUARIO |o--o{ INFORME : "director que firma"
+    INFORME ||--o| CERTIFICADO : "si es conforme"
+    COTIZACION_EQUIPO ||--o{ CERTIFICADO : ""
+    USUARIO ||--o{ NOTIFICACION : "recibe"
+
+    USUARIO {
+        int id_usuario PK
+        int id_rol FK
+        int id_cliente FK "solo rol CLIENTE"
+        string correo UK
+        blob contrasena_encriptada "sal + PBKDF2"
+        string estado
+    }
+    EQUIPO {
+        int id_equipo PK
+        int id_edificio FK
+        string identificacion
+        string tipo_equipo
+        int numero_paradas
+        decimal recorrido_m
+        int profundidad_foso_mm
+    }
+    NORMA {
+        int id_norma PK
+        string codigo "NTC 5926-1"
+        int parte
+        int version "2012"
+        int plazo_dias_leve
+        int plazo_dias_grave
+        int plazo_dias_muy_grave
+        bool vigente
+    }
+    COTIZACION {
+        int id_cotizacion PK
+        string numero_cotizacion UK "COT-AAAA-NNNN"
+        string estado
+    }
+    COTIZACION_EQUIPO {
+        int id_cotizacion_equipo PK
+        int id_cotizacion FK
+        int id_equipo FK
+        int id_norma FK
+        decimal valor
+        string estado "maquina de estados"
+        date fecha_limite_correccion
+        int id_servicio_anterior FK
+    }
+    PROGRAMACION {
+        int id_programacion PK
+        string tipo_visita "PRIMERA o SEGUNDA"
+        date fecha_programada
+        time hora_inicio
+        string estado
+    }
+    CHECKLIST_ITEM {
+        int id_item PK
+        int id_norma FK
+        int numero "1 a 169"
+        string calificacion "LEVE GRAVE MUY_GRAVE"
+        bool requiere_medicion
+        int foso_minimo_mm
+    }
+    INSPECCION {
+        int id_inspeccion PK
+        string numero_inspeccion "INS-AAAA-NNNN"
+        int id_cotizacion_equipo FK
+        string uuid_offline UK
+        string estado
+    }
+    INSPECCION_RESULTADO {
+        int id_resultado PK
+        int id_inspeccion FK
+        int id_item FK
+        string resultado "CUMPLE NO_CUMPLE NO_APLICA"
+        string estado_segunda_visita "CORREGIDO NO_CORREGIDO"
+        datetime modificado_en_cliente
+    }
+    INFORME {
+        int id_informe PK
+        string numero_informe "INF-AAAA-NNNN-1V"
+        int numero_visita "1 o 2"
+        string estado
+        string concepto "CONFORME NO_CONFORME"
+        string hash_sha256
+    }
+    CERTIFICADO {
+        int id_certificado PK
+        string numero_certificado "CER-AAAA-NNNN"
+        int id_informe FK
+        string codigo_verificacion UK "QR"
+        date fecha_vencimiento
+        string estado
+    }

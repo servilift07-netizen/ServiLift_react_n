@@ -2,6 +2,9 @@
 
 Carpeta del proyecto: `C:\Users\PC\Documents\Sena\LiftSafe\servi lift react`
 
+> Para Linux/macOS y el detalle de variables de entorno ver [docs/instalacion.md](docs/instalacion.md);
+> arquitectura, casos de uso, modelo de datos y pruebas en [docs/](docs/README.md).
+
 Requisitos: Git, **Docker Desktop** (base de datos), **uv** (backend; el instalador lo agrega), Node.js 22+ y,
 para el celular, la app **Expo Go** (Play Store / App Store) o Android Studio. Las pruebas E2E usan además pnpm
 (el instalador lo agrega). XAMPP sigue sirviendo como alternativa a Docker (ver "Base en XAMPP").
@@ -119,6 +122,7 @@ cada ítem "Guardado en el teléfono". Al volver la señal se envían solos (men
 - Las E2E levantan solas el backend en el puerto **8010** y la app en el **8091** contra `servilift_v2_prueba`:
   no chocan con el backend (8000) ni con Expo (8081) del día a día y nunca tocan `servilift_db`.
 - GitHub Actions corre las unitarias en cada pull request (`.github/workflows/tests.yml`).
+- Qué prueba cada archivo, cobertura y CI: [docs/pruebas.md](docs/pruebas.md).
 - Matriz de rotación, cobertura semanal y mutantes: `docs/matriz-rotacion.md`.
 
 ## Problemas comunes

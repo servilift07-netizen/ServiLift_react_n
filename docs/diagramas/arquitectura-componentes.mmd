@@ -1,0 +1,24 @@
+flowchart LR
+    subgraph Clientes
+        CEL["App en el celular<br/>(Android / iOS, Expo)<br/>Inspector"]
+        WEB["App en el navegador<br/>(Expo web)<br/>Oficina y cliente"]
+    end
+
+    subgraph Servidor["servilift-backend (FastAPI)"]
+        RUT["Rutas por módulo<br/>app/routes"]
+        SEG["Seguridad<br/>JWT + roles + enlaces firmados"]
+        SRV["Servicios<br/>flujo, checklist, reglas, pdf, archivos"]
+        ORM["Modelos SQLAlchemy<br/>app/models.py"]
+    end
+
+    DB[("MariaDB 10.11<br/>servilift_db")]
+    FS[["storage/<br/>fotos, firmas, PDF"]]
+
+    CEL -- "HTTP/JSON + Bearer JWT" --> RUT
+    WEB -- "HTTP/JSON + Bearer JWT" --> RUT
+    RUT --> SEG
+    RUT --> SRV
+    SRV --> ORM
+    ORM -- "SQL (PyMySQL)" --> DB
+    SRV --> FS
+    WEB -. "QR del certificado<br/>/verificar/{codigo}" .-> RUT

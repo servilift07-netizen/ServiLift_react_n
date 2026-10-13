@@ -1,0 +1,24 @@
+sequenceDiagram
+    actor I as Inspector
+    participant UI as Pantalla de inspección
+    participant C as Cola persistente<br/>(src/offline/cola.ts)
+    participant M as Motor de sincronización<br/>(SincronizacionContext)
+    participant API as API FastAPI
+    participant DB as MariaDB
+
+    I->>UI: Califica ítem / toma foto / firma
+    UI->>C: Guarda la operación (con hora y uuid)
+    C-->>UI: "Guardado en el teléfono"
+    Note over M: Se dispara al guardar, al volver la red,<br/>al abrir la app y cada 30 s
+    M->>C: Toma las operaciones en orden
+    alt Hay señal
+        M->>API: PUT /inspecciones/{id}/resultados (modificado_en)
+        API->>DB: Guarda solo si es más reciente que lo guardado
+        API-->>M: 200
+        M->>C: Quita la operación
+    else Sin señal
+        M->>M: Reintenta con espera creciente (3 s … 60 s)
+    else Error del servidor (4xx/5xx)
+        M->>C: La marca con error (no se borra)
+        C-->>I: Aparece en "Sincronización" para reintentar o descartar
+    end

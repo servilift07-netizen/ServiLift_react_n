@@ -9,6 +9,7 @@ asesor registra al cliente y lo cotiza hasta que el cliente descarga el certific
 - **Cliente**: portal para aprobar cotizaciones y descargar informes y certificados.
 
 Guía paso a paso: [GUIA_EJECUCION.md](GUIA_EJECUCION.md) · Instalación en un PC nuevo: `instalar.ps1` ·
+Documentación técnica (arquitectura, casos de uso, modelo de datos, instalación y pruebas): [docs/](docs/README.md) ·
 Documentación completa (proyecto y bootcamp de pruebas): https://github.com/servilift07-netizen/documentacion
 
 ## Versiones
@@ -18,6 +19,8 @@ Documentación completa (proyecto y bootcamp de pruebas): https://github.com/ser
   o de funcionalidad, con el CI en verde.
 
 ## Arquitectura
+
+Detalle con diagramas en [docs/arquitectura.md](docs/arquitectura.md).
 
 ```
 ┌──────────────────────────────┐   HTTP/JSON (JWT)   ┌─────────────────────────┐    SQL    ┌──────────────────┐
@@ -37,6 +40,8 @@ Documentación completa (proyecto y bootcamp de pruebas): https://github.com/ser
 | Pruebas | Vitest (app), pytest + pytest-cov (backend), Playwright (E2E), GitHub Actions (CI con umbral de cobertura) |
 
 ## Reglas del negocio
+
+Casos de uso y máquina de estados en [docs/casos-de-uso.md](docs/casos-de-uso.md) y [docs/modelo-de-datos.md](docs/modelo-de-datos.md).
 
 - Cada equipo cotizado tiene su **norma** (por defecto la edición vigente de la NTC 5926-1).
 - **Solo existen dos visitas** por servicio:
@@ -71,7 +76,7 @@ Documentación completa (proyecto y bootcamp de pruebas): https://github.com/ser
 servi lift react/
 ├── .github/             Workflow de CI (tests.yml) y plantilla de pull request
 ├── database/            Esquema v2, catálogos y datos de prueba (ver database/README.md)
-├── docs/                Matriz de rotación de capas y cobertura semanal (bootcamp de pruebas)
+├── docs/                Documentación técnica (arquitectura, casos de uso, modelo de datos, instalación, pruebas)
 ├── e2e/                 Pruebas de extremo a extremo con Playwright
 ├── servilift-backend/   API FastAPI, PDF, pruebas (unitarias e integración) y migraciones Alembic
 ├── servilift-app/       App Expo (celular y navegador) y sus pruebas unitarias
@@ -79,6 +84,8 @@ servi lift react/
 ```
 
 ## Pruebas
+
+Niveles, comandos, cobertura y CI en [docs/pruebas.md](docs/pruebas.md).
 
 ```
 cd servilift-app      && npm test                       # unitarias + cobertura de la app
