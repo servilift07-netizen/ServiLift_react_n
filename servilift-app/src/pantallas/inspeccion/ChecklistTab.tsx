@@ -1,6 +1,6 @@
 // Checklist de la norma del servicio, por zonas. Cada cambio se guarda en el teléfono al instante
 // y se sincroniza solo. En la segunda visita muestra solo los hallazgos para marcarlos corregidos / no corregidos.
-import { memo, useMemo, useState } from 'react';
+import { memo, useMemo, useRef, useState } from 'react';
 import { Image, ScrollView, View } from 'react-native';
 import { Button, Chip, List, Text } from 'react-native-paper';
 
@@ -31,7 +31,10 @@ export default function ChecklistTab({ idInspeccion, editable, segundaVisita }: 
     { intervalo: null, cache: clavesCache.checklist(idInspeccion) });
   const sync = useSincronizacion();
   const [filtro, setFiltro] = useState<string>('TODOS');
-  const [abiertas, setAbiertas] = useState<Set<number>>(new Set());
+  // Solo una sección abierta a la vez; al abrir otra, la anterior se cierra y se baja hasta la nueva
+  const [abierta, setAbierta] = useState<number | null>(null);
+  const scroll = useRef<ScrollView>(null);
+  const irA = useRef<number | null>(null);
 
   // Lo que ya llegó al servidor se incorpora a los datos guardados (sin volver a descargar todo)
   useEnvios(idInspeccion, (e) => {
@@ -84,28 +87,32 @@ export default function ChecklistTab({ idInspeccion, editable, segundaVisita }: 
           </>
         )}
       </View>
-      <ScrollView contentContainerStyle={{ padding: 8, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+      <ScrollView ref={scroll} contentContainerStyle={{ padding: 8, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
         <View style={{ width: '100%', maxWidth: 900, alignSelf: 'center' }}>
           {datos.categorias.map((cat) => {
             const items = cat.items.filter(visible);
             if (!items.length) return null;
             const hechos = cat.items.filter((i) => i.resultado && i.resultado.resultado !== 'NO_VERIFICADO').length;
-            const abierta = segundaVisita || filtro !== 'TODOS' || abiertas.has(cat.id_categoria);
+            const expandida = segundaVisita || filtro !== 'TODOS' || abierta === cat.id_categoria;
             return (
-              <View key={cat.id_categoria} style={{ backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: Colores.borde, marginVertical: 4, overflow: 'hidden' }}>
+              <View key={cat.id_categoria} onLayout={(e) => {
+                if (irA.current !== cat.id_categoria) return;
+                irA.current = null;
+                scroll.current?.scrollTo({ y: e.nativeEvent.layout.y, animated: true });
+              }} style={{ backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: Colores.borde, marginVertical: 4, overflow: 'hidden' }}>
                 <List.Accordion
                   title={cat.nombre}
                   titleStyle={{ fontWeight: '700' }}
                   description={segundaVisita ? undefined : `${hechos} de ${cat.items.length}`}
-                  expanded={abierta}
-                  onPress={() => setAbiertas((s) => {
-                    const n = new Set(s);
-                    if (n.has(cat.id_categoria)) n.delete(cat.id_categoria); else n.add(cat.id_categoria);
-                    return n;
-                  })}
+                  expanded={expandida}
+                  onPress={() => {
+                    const nueva = abierta === cat.id_categoria ? null : cat.id_categoria;
+                    irA.current = nueva;
+                    setAbierta(nueva);
+                  }}
                   style={{ backgroundColor: '#fff' }}
                 >
-                  {abierta && items.map((it) => (
+                  {expandida && items.map((it) => (
                     <Item key={it.id_item} it={it} idInspeccion={idInspeccion} editable={editable} segundaVisita={segundaVisita}
                       fotosLocales={fotosPorItem.get(it.id_item) ?? SIN_FOTOS} />
                   ))}
