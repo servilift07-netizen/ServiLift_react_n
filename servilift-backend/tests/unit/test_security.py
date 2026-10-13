@@ -16,19 +16,28 @@ AHORA = 1_790_000_000  # instante fijo para las pruebas
 
 
 # ---------------------------------------------------------------- contraseñas
-def test_verify_password_accepts_the_original_password():
-    hashed = hash_password("123456")
+def test_hash_password_returns_a_48_byte_blob_without_the_plain_password():
+    guardada = hash_password("123456")
 
-    assert hashed != "123456"
-    assert verify_password("123456", hashed) is True
+    assert isinstance(guardada, bytes) and len(guardada) == 48  # 16 de sal + 32 de PBKDF2-SHA256
+    assert b"123456" not in guardada
+
+
+def test_hash_password_uses_a_new_salt_each_time():
+    assert hash_password("123456") != hash_password("123456")
+
+
+def test_verify_password_accepts_the_original_password():
+    assert verify_password("123456", hash_password("123456")) is True
 
 
 def test_verify_password_rejects_a_different_password():
     assert verify_password("1234567", hash_password("123456")) is False
 
 
-def test_verify_password_returns_false_when_the_stored_hash_is_corrupt():
-    assert verify_password("123456", "no-es-un-hash-bcrypt") is False
+@pytest.mark.parametrize("guardada", [None, b"", b"corta", "texto-no-binario", b"x" * 47, b"x" * 49])
+def test_verify_password_returns_false_when_the_stored_value_is_not_a_valid_blob(guardada):
+    assert verify_password("123456", guardada) is False
 
 
 # ---------------------------------------------------------------- token de sesión
