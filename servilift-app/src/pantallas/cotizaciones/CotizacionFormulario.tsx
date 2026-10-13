@@ -135,7 +135,7 @@ export default function CotizacionFormulario() {
         {!!equipos.length && (
           <TextInput mode="outlined" dense label="Mismo valor a todos" keyboardType="number-pad" value={valorTodos}
             onChangeText={setValorTodos} style={{ maxWidth: 280, marginBottom: 6 }}
-            right={<TextInput.Icon icon="check-all" onPress={() => setLineas((x) => Object.fromEntries(
+            right={<TextInput.Icon tabIndex={-1} icon="check-all" onPress={() => setLineas((x) => Object.fromEntries(
               Object.entries(x).map(([k, l]) => [k, { ...l, incluido: true, valor: valorTodos }])))} />} />
         )}
         {!equipos.length && <Vacio texto={idEd ? 'El edificio no tiene equipos registrados' : 'Elija el cliente y el edificio'} />}

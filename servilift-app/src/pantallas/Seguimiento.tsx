@@ -47,8 +47,8 @@ export default function Seguimiento() {
             value={texto}
             onChangeText={setTexto}
             onSubmitEditing={() => setFiltro((f) => ({ ...f, buscar: texto.trim() }))}
-            left={<TextInput.Icon icon="magnify" />}
-            right={<TextInput.Icon icon="arrow-right" onPress={() => setFiltro((f) => ({ ...f, buscar: texto.trim() }))} />}
+            left={<TextInput.Icon tabIndex={-1} icon="magnify" />}
+            right={<TextInput.Icon tabIndex={-1} icon="arrow-right" onPress={() => setFiltro((f) => ({ ...f, buscar: texto.trim() }))} />}
           />
           <Selector
             style={{ flexGrow: 1, minWidth: 240 }}

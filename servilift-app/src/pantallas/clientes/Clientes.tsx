@@ -43,8 +43,8 @@ export default function Clientes() {
           value={texto}
           onChangeText={setTexto}
           onSubmitEditing={() => setBuscar(texto.trim())}
-          left={<TextInput.Icon icon="magnify" />}
-          right={<TextInput.Icon icon="arrow-right" onPress={() => setBuscar(texto.trim())} />}
+          left={<TextInput.Icon tabIndex={-1} icon="magnify" />}
+          right={<TextInput.Icon tabIndex={-1} icon="arrow-right" onPress={() => setBuscar(texto.trim())} />}
         />
         {!c.datos ? <EstadoCarga error={c.error} onReintentar={c.recargar} />
           : !c.datos.length ? <Vacio texto={buscar ? 'Sin resultados para la búsqueda' : 'No hay registros'} />

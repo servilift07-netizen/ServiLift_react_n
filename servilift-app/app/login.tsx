@@ -48,7 +48,7 @@ export default function Login() {
               autoCapitalize="none"
               keyboardType="email-address"
               autoComplete="email"
-              left={<TextInput.Icon icon="email-outline" />}
+              left={<TextInput.Icon tabIndex={-1} icon="email-outline" />}
             />
             <TextInput
               mode="outlined"
@@ -57,8 +57,8 @@ export default function Login() {
               onChangeText={setClave}
               secureTextEntry={ocultar}
               onSubmitEditing={ingresar}
-              left={<TextInput.Icon icon="lock-outline" />}
-              right={<TextInput.Icon icon={ocultar ? 'eye' : 'eye-off'} onPress={() => setOcultar(!ocultar)} />}
+              left={<TextInput.Icon tabIndex={-1} icon="lock-outline" />}
+              right={<TextInput.Icon tabIndex={-1} icon={ocultar ? 'eye' : 'eye-off'} onPress={() => setOcultar(!ocultar)} />}
             />
             {error && <Text style={{ color: Colores.error }}>{error}</Text>}
             <Button mode="contained" onPress={ingresar} loading={enviando} disabled={enviando} contentStyle={{ height: 46 }}>

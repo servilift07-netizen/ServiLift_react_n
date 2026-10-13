@@ -60,7 +60,7 @@ export default function CertificadosEmitidos() {
       <Stack.Screen options={{ title: 'Certificados emitidos' }} />
       <Contenido refreshControl={<RefreshControl refreshing={false} onRefresh={c.recargar} />}>
         <TextInput mode="outlined" dense label="Número de cotización" value={texto} onChangeText={setTexto}
-          onSubmitEditing={() => setNumero(texto.trim())} left={<TextInput.Icon icon="magnify" />} />
+          onSubmitEditing={() => setNumero(texto.trim())} left={<TextInput.Icon tabIndex={-1} icon="magnify" />} />
         {!c.datos ? <EstadoCarga error={c.error} onReintentar={c.recargar} />
           : !c.datos.length ? <Vacio texto="No hay certificados" />
             : c.datos.map((x) => (

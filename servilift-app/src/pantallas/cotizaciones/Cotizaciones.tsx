@@ -26,7 +26,7 @@ export default function Cotizaciones() {
         <Fila style={{ marginBottom: 8 }}>
           <TextInput mode="outlined" dense style={{ flexGrow: 1, minWidth: 220 }} label="Buscar por número" value={texto}
             onChangeText={setTexto} onSubmitEditing={() => setFiltro((f) => ({ ...f, numero: texto.trim() }))}
-            left={<TextInput.Icon icon="magnify" />} />
+            left={<TextInput.Icon tabIndex={-1} icon="magnify" />} />
           <Selector style={{ flexGrow: 1, minWidth: 220 }} etiqueta="Estado" valor={filtro.estado} permitirVacio
             opciones={estados.map((e) => ({ valor: e, texto: etiqueta(e) }))} onCambiar={(v) => setFiltro((f) => ({ ...f, estado: v }))} />
         </Fila>
