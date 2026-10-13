@@ -1,9 +1,10 @@
 // Campos de formulario reutilizables: selector de opciones y fecha con opción "NI".
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { Button, Dialog, Portal, RadioButton, Searchbar, Text, TextInput } from 'react-native-paper';
 
-import { fechaApi } from '@/tema';
+import { Colores, fechaApi } from '@/tema';
 
 export interface Opcion<T extends string | number = string> {
   valor: T;
@@ -27,20 +28,38 @@ export function Selector<T extends string | number>({
   const [buscar, setBuscar] = useState('');
   const elegida = opciones.find((o) => o.valor === valor);
   const filtradas = buscar ? opciones.filter((o) => o.texto.toLowerCase().includes(buscar.toLowerCase())) : opciones;
+  const texto = elegida?.texto ?? (permitirVacio && (valor === null || valor === undefined) ? textoVacio : '');
   return (
     <View style={style}>
-      <Pressable onPress={() => !deshabilitado && setAbierto(true)}>
-        <View pointerEvents="none">
-          <TextInput
-            mode="outlined"
-            dense
-            label={etiqueta}
-            value={elegida?.texto ?? (permitirVacio && (valor === null || valor === undefined) ? textoVacio : '')}
-            editable={false}
-            disabled={deshabilitado}
-            right={<TextInput.Icon icon="menu-down" />}
-          />
-        </View>
+      {/* Botón con aspecto de campo: cualquier parte (texto, flecha o borde) abre la lista.
+          No se usa un campo de texto bloqueado porque en el navegador la flecha y el texto
+          capturaban el clic (el texto se desplazaba y la lista no abría). */}
+      <Pressable
+        onPress={() => setAbierto(true)}
+        disabled={deshabilitado}
+        accessibilityRole="button"
+        accessibilityLabel={`${etiqueta}: ${texto || 'sin seleccionar'}`}
+        style={{ paddingTop: 6 }}
+      >
+        {(estado) => { const hovered = (estado as { hovered?: boolean }).hovered; return (
+          <View>
+            <View style={{
+              minHeight: 42, flexDirection: 'row', alignItems: 'center', paddingLeft: 14, paddingRight: 6,
+              borderWidth: hovered && !deshabilitado ? 2 : 1, borderColor: hovered && !deshabilitado ? Colores.acento : '#79747E',
+              borderRadius: 10, backgroundColor: '#fff', opacity: deshabilitado ? 0.55 : 1,
+            }}>
+              <Text numberOfLines={1} style={{ flex: 1, fontSize: 16, color: texto ? Colores.navy : Colores.gris }}>
+                {texto || etiqueta}
+              </Text>
+              <MaterialCommunityIcons name="menu-down" size={24} color={Colores.gris} />
+            </View>
+            {!!texto && (
+              <Text numberOfLines={1} style={{ position: 'absolute', top: -7, left: 10, right: 30, alignSelf: 'flex-start' }}>
+                <Text style={{ fontSize: 12, color: Colores.gris, backgroundColor: '#fff' }}> {etiqueta} </Text>
+              </Text>
+            )}
+          </View>
+        ); }}
       </Pressable>
       <Portal>
         <Dialog visible={abierto} onDismiss={() => setAbierto(false)} style={{ maxWidth: 520, width: '92%', alignSelf: 'center' }}>
@@ -126,7 +145,7 @@ export function CampoFecha({ etiqueta, valor, onCambiar, deshabilitado, style }:
         disabled={deshabilitado}
         error={invalida}
         keyboardType="numbers-and-punctuation"
-        right={deshabilitado ? undefined : <TextInput.Icon icon="calendar-today" onPress={() => onCambiar(Fechas.mostrar(fechaApi(new Date())))} />}
+        right={deshabilitado ? undefined : <TextInput.Icon tabIndex={-1} icon="calendar-today" onPress={() => onCambiar(Fechas.mostrar(fechaApi(new Date())))} />}
       />
       {!deshabilitado && (
         <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
