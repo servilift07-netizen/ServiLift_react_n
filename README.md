@@ -32,7 +32,7 @@ Documentación completa (proyecto y bootcamp de pruebas): https://github.com/ser
 | Capa | Tecnología |
 |---|---|
 | Base de datos | MariaDB 10.4 (XAMPP) / MySQL 8, migraciones con Alembic |
-| Backend | Python 3.13, FastAPI, SQLAlchemy 2, Pydantic 2, JWT, bcrypt, ReportLab, Pillow |
+| Backend | Python 3.13, FastAPI, SQLAlchemy 2, Pydantic 2, JWT, PBKDF2 (contraseñas en BLOB), ReportLab, Pillow |
 | App | Expo SDK 57, React Native, TypeScript, Expo Router, React Native Paper |
 | Pruebas | Vitest (app), pytest + pytest-cov (backend), Playwright (E2E), GitHub Actions (CI con umbral de cobertura) |
 

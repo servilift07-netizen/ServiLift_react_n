@@ -46,7 +46,7 @@ def crear_interno(rol: str) -> str:
     db = SessionLocal()
     correo = f"{rol.lower()}_{SUF}@servilift-prueba.co"
     db.add(Usuario(id_rol=db.query(Rol).filter(Rol.codigo == rol).one().id_rol, nombre_completo=f"{rol.title()} Prueba",
-                   correo=correo, contrasena_hash=hash_password(CLAVE)))
+                   correo=correo, contrasena_encriptada=hash_password(CLAVE)))
     db.commit()
     db.close()
     return correo

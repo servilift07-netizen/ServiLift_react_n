@@ -54,7 +54,7 @@ CREATE TABLE usuario (
   id_cliente        INT NULL COMMENT 'Solo para usuarios con rol CLIENTE: empresa a la que pertenecen',
   nombre_completo   VARCHAR(150) NOT NULL,
   correo            VARCHAR(120) NOT NULL UNIQUE,
-  contrasena_hash   VARCHAR(255) NOT NULL COMMENT 'bcrypt',
+  contrasena_encriptada BLOB NOT NULL COMMENT 'Sal (16 bytes) + PBKDF2-SHA256 (32 bytes); nunca la contraseña',
   tipo_documento    ENUM('CC','CE','NIT','PPT','PAS') NULL,
   documento         VARCHAR(30)  NULL,
   telefono          VARCHAR(30)  NULL,
@@ -768,4 +768,4 @@ WHERE i.activo = 1;
 CREATE TABLE alembic_version (
   version_num VARCHAR(32) NOT NULL PRIMARY KEY
 ) ENGINE=InnoDB;
-INSERT INTO alembic_version (version_num) VALUES ('0004_parametros_recorrido');
+INSERT INTO alembic_version (version_num) VALUES ('0005_contrasena_blob');

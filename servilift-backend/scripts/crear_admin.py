@@ -25,7 +25,7 @@ def main():
         if db.query(Usuario).filter(Usuario.correo == correo).first():
             sys.exit(f"Ya existe un usuario con el correo {correo}")
         rol = db.query(Rol).filter(Rol.codigo == "ADMIN").one()
-        db.add(Usuario(id_rol=rol.id_rol, nombre_completo=nombre, correo=correo, contrasena_hash=hash_password(clave)))
+        db.add(Usuario(id_rol=rol.id_rol, nombre_completo=nombre, correo=correo, contrasena_encriptada=hash_password(clave)))
         db.commit()
         print(f"Administrador {correo} creado.")
     finally:

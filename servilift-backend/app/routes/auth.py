@@ -27,7 +27,7 @@ class CambioContrasenaIn(BaseModel):
 @router.post("/login")
 def login(datos: LoginIn, db: Session = Depends(get_db)):
     usuario = db.query(Usuario).filter(Usuario.correo == datos.correo.lower()).first()
-    if not usuario or not verify_password(datos.contrasena, usuario.contrasena_hash):
+    if not usuario or not verify_password(datos.contrasena, usuario.contrasena_encriptada):
         raise HTTPException(401, "Correo o contraseña incorrectos")
     if usuario.estado != "ACTIVO":
         raise HTTPException(403, "Usuario inactivo")
@@ -44,10 +44,10 @@ def me(usuario: Usuario = Depends(get_current_user)):
 @router.post("/cambiar-contrasena")
 def cambiar_contrasena(datos: CambioContrasenaIn, usuario: Usuario = Depends(get_current_user),
                        db: Session = Depends(get_db)):
-    if not verify_password(datos.actual, usuario.contrasena_hash):
+    if not verify_password(datos.actual, usuario.contrasena_encriptada):
         raise HTTPException(400, "La contraseña actual no es correcta")
     if len(datos.nueva) < MIN_CONTRASENA:
         raise HTTPException(400, f"La nueva contraseña debe tener al menos {MIN_CONTRASENA} caracteres")
-    usuario.contrasena_hash = hash_password(datos.nueva)
+    usuario.contrasena_encriptada = hash_password(datos.nueva)
     db.commit()
     return {"ok": True}

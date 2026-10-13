@@ -1,12 +1,12 @@
 # app/security.py
-# Contraseñas (bcrypt), tokens JWT y control de acceso por rol.
+# Contraseñas (PBKDF2-SHA256 guardado como BLOB), tokens JWT y control de acceso por rol.
 
 import hashlib
 import hmac
+import os
 import time
 from datetime import datetime, timedelta, timezone
 
-import bcrypt
 from fastapi import Depends, HTTPException, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
@@ -30,15 +30,26 @@ ROLES_INTERNOS = {ADMIN, ASESOR, PROGRAMACION, INSPECTOR, DIRECTOR_TECNICO, CERT
 security = HTTPBearer()
 
 
-def hash_password(password: str) -> str:
-    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+# La contraseña nunca se guarda: se guarda sal (16 bytes) + PBKDF2-SHA256 (32 bytes) en una columna BLOB.
+# Es de un solo sentido (no se puede "desencriptar"); para validar se recalcula con la misma sal y se compara.
+SAL_BYTES = 16
+ITERACIONES = 600_000
 
 
-def verify_password(password: str, hashed: str) -> bool:
-    try:
-        return bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
-    except ValueError:
+def _derivar(password: str, sal: bytes) -> bytes:
+    return hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), sal, ITERACIONES)
+
+
+def hash_password(password: str) -> bytes:
+    sal = os.urandom(SAL_BYTES)
+    return sal + _derivar(password, sal)
+
+
+def verify_password(password: str, guardada: bytes | None) -> bool:
+    if not isinstance(guardada, (bytes, bytearray)) or len(guardada) != SAL_BYTES + 32:
         return False
+    sal, esperado = bytes(guardada[:SAL_BYTES]), bytes(guardada[SAL_BYTES:])
+    return hmac.compare_digest(_derivar(password, sal), esperado)
 
 
 def create_access_token(usuario: Usuario) -> str:
