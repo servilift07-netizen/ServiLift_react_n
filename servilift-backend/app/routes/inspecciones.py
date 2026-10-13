@@ -671,10 +671,17 @@ def firmar(id_inspeccion: int, datos: FirmaIn, db: Session = Depends(get_db),
         archivos.borrar(previa.ruta_firma)
         insp.firmas.remove(previa)
         db.flush()
+    nombre, documento, cargo = datos.nombre, datos.documento, datos.cargo
+    if datos.tipo_firmante == "INSPECTOR":  # siempre con los datos del usuario inspector
+        nombre = usuario.nombre_completo
+        documento = " ".join(x for x in (usuario.tipo_documento, usuario.documento) if x) or None
+        cargo = "Inspector"
+    elif datos.tipo_firmante == "TECNICO_MANTENIMIENTO":
+        documento, cargo = None, "Técnico de mantenimiento"
     insp.firmas.append(InspeccionFirma(
         numero_visita=datos.numero_visita, tipo_firmante=datos.tipo_firmante, uuid_offline=datos.uuid_offline,
         id_usuario=usuario.id_usuario if datos.tipo_firmante == "INSPECTOR" else None,
-        nombre=datos.nombre, documento=datos.documento, cargo=datos.cargo, empresa=datos.empresa,
+        nombre=nombre, documento=documento, cargo=cargo, empresa=datos.empresa,
         ruta_firma=ruta, fecha_firma=a_local(datos.fecha_firma) or ahora(),
     ))
     if datos.tipo_firmante == "TECNICO_MANTENIMIENTO" and not insp.tecnico_mantenimiento:

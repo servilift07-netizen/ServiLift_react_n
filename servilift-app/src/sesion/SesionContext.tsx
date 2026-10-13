@@ -21,6 +21,8 @@ export interface Usuario {
   correo: string;
   rol: string;
   rol_nombre?: string;
+  tipo_documento?: string | null;
+  documento?: string | null;
   id_cliente?: number | null;
   tiene_firma?: boolean;
 }

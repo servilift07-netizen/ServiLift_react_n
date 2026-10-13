@@ -6,13 +6,16 @@ import Svg, { Path } from 'react-native-svg';
 
 import { url } from '@/api/cliente';
 import { Icon, Icono, Tarjeta, Titulo } from '@/componentes/Comunes';
-import { useDialogos } from '@/componentes/Dialogos';
+import { Campo, useDialogos } from '@/componentes/Dialogos';
 import { Dibujo } from '@/componentes/LienzoFirma';
 import { cola, uuid } from '@/offline/cola';
 import { useSincronizacion } from '@/offline/SincronizacionContext';
 import { useSesion } from '@/sesion/SesionContext';
 import { Colores, fechaHora } from '@/tema';
 import { firmasPendientes } from './pendientes';
+
+// Cargo fijo de quienes no son del edificio (el servidor lo vuelve a poner)
+const CARGO: Record<string, string> = { INSPECTOR: 'Inspector', TECNICO_MANTENIMIENTO: 'Técnico de mantenimiento' };
 
 const TIPOS: [string, string, Icono][] = [
   ['INSPECTOR', 'Inspector', 'account-hard-hat'],
@@ -42,21 +45,31 @@ export default function FirmasTab({ insp, editable }: { insp: any; editable: boo
 
   const firmar = async (tipo: string, titulo: string, visita: number) => {
     const ed = insp.datos_equipo?.edificio ?? {};
+    // Inspector: sus datos de usuario, sin cambios. Técnico: nombre y empresa, cargo fijo y sin documento.
+    // Representante del edificio: quien reciba la visita, todo editable.
+    const campos: Campo[] = tipo === 'INSPECTOR' ? [
+      { clave: 'nombre', etiqueta: 'Nombre completo', soloLectura: true },
+      { clave: 'documento', etiqueta: 'Documento', soloLectura: true },
+      { clave: 'cargo', etiqueta: 'Cargo', soloLectura: true },
+    ] : tipo === 'TECNICO_MANTENIMIENTO' ? [
+      { clave: 'nombre', etiqueta: 'Nombre completo', obligatorio: true },
+      { clave: 'cargo', etiqueta: 'Cargo', soloLectura: true },
+      { clave: 'empresa', etiqueta: 'Empresa' },
+    ] : [
+      { clave: 'nombre', etiqueta: 'Nombre completo', obligatorio: true },
+      { clave: 'documento', etiqueta: 'Documento' },
+      { clave: 'cargo', etiqueta: 'Cargo' },
+    ];
+    const documento = [usuario?.tipo_documento, usuario?.documento].filter(Boolean).join(' ');
     const datos = await d.formulario({
       titulo: `Firma: ${titulo}`,
       textoGuardar: 'Continuar a la firma',
-      campos: [
-        { clave: 'nombre', etiqueta: 'Nombre completo', obligatorio: true },
-        { clave: 'documento', etiqueta: 'Documento' },
-        { clave: 'cargo', etiqueta: 'Cargo' },
-        ...(tipo === 'TECNICO_MANTENIMIENTO' ? [{ clave: 'empresa', etiqueta: 'Empresa' }] : []),
-      ],
-      valores: {
-        nombre: tipo === 'INSPECTOR' ? usuario?.nombre_completo : tipo === 'TECNICO_MANTENIMIENTO'
-          ? insp.tecnico_mantenimiento ?? '' : ed.administrador_nombre ?? '',
-        cargo: tipo === 'REPRESENTANTE_EDIFICIO' ? 'Administrador(a)' : '',
-        empresa: tipo === 'TECNICO_MANTENIMIENTO' ? insp.empresa_mantenimiento ?? '' : '',
-      },
+      campos,
+      valores: tipo === 'INSPECTOR'
+        ? { nombre: usuario?.nombre_completo ?? '', documento: usuario?.documento ? documento : 'Sin documento registrado', cargo: CARGO.INSPECTOR }
+        : tipo === 'TECNICO_MANTENIMIENTO'
+          ? { nombre: insp.tecnico_mantenimiento ?? '', cargo: CARGO.TECNICO_MANTENIMIENTO, empresa: insp.empresa_mantenimiento ?? '' }
+          : { nombre: ed.administrador_nombre ?? '', cargo: 'Administrador(a)' },
       guardar: async (v) => v,
     });
     if (!datos) return;
@@ -64,7 +77,8 @@ export default function FirmasTab({ insp, editable }: { insp: any; editable: boo
     if (!dibujo) return;
     await cola.agregar({
       tipo: 'firma', idInspeccion: insp.id_inspeccion, uuid: uuid(), descripcion: `Firma: ${titulo}`,
-      body: { tipo_firmante: tipo, nombre: datos.nombre, documento: datos.documento ?? null, cargo: datos.cargo ?? null,
+      body: { tipo_firmante: tipo, nombre: datos.nombre,
+        documento: tipo === 'REPRESENTANTE_EDIFICIO' ? datos.documento || null : null, cargo: datos.cargo || null,
         empresa: datos.empresa ?? null, dibujo, numero_visita: visita, fecha_firma: new Date().toISOString() },
     });
     d.mensaje('Firma guardada en el teléfono; se envía sola');

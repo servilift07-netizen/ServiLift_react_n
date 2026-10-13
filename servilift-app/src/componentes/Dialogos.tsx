@@ -24,6 +24,8 @@ export interface Campo {
   inicial?: string;
   oculto?: boolean;
   multilinea?: boolean;
+  /** Se muestra pero no se puede cambiar (dato que viene del sistema) */
+  soloLectura?: boolean;
 }
 
 interface FormularioOpciones {
@@ -284,6 +286,7 @@ function DialogoFormulario({ d, terminar, ejecutar }: {
                   onChangeText={(t) => setValores((x) => ({ ...x, [c.clave]: t }))}
                   secureTextEntry={c.oculto}
                   multiline={c.multilinea}
+                  disabled={c.soloLectura}
                   keyboardType={c.numero ? 'decimal-pad' : 'default'}
                   autoCapitalize={c.oculto || c.clave.includes('correo') ? 'none' : 'sentences'}
                   error={!!errores[c.clave]}
