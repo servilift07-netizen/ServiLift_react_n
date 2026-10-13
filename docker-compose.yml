@@ -1,0 +1,39 @@
+# Base de datos de ServiLift en Docker (MariaDB, la misma familia del MySQL de XAMPP).
+#
+#   docker compose up -d        enciende la base (la primera vez la crea con los scripts de database/)
+#   docker compose ps           estado (debe decir "healthy")
+#   docker compose stop         la apaga sin borrar nada
+#   docker compose down -v      la BORRA por completo (la próxima vez se crea de cero)
+#
+# Escucha en el puerto 3307 para convivir con XAMPP (3306). Usuario de la app: servilift / servilift.
+services:
+  db:
+    image: mariadb:10.11
+    container_name: servilift-db
+    restart: unless-stopped
+    ports:
+      - "3307:3306"
+    environment:
+      MARIADB_ROOT_PASSWORD: servilift-root
+      MARIADB_USER: servilift
+      MARIADB_PASSWORD: servilift
+      TZ: America/Bogota
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=-05:00
+    volumes:
+      # Los datos viven en un volumen de Docker: sobreviven a apagar o recrear el contenedor
+      - servilift-datos:/var/lib/mysql
+      # Scripts del esquema y datos iniciales (solo lectura)
+      - ./database:/servilift/database:ro
+      # Se ejecuta solo la primera vez (volumen vacío): crea servilift_db y servilift_v2_prueba
+      - ./database/docker:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  servilift-datos:
