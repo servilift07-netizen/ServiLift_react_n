@@ -765,4 +765,4 @@ WHERE i.activo = 1;
 CREATE TABLE alembic_version (
   version_num VARCHAR(32) NOT NULL PRIMARY KEY
 ) ENGINE=InnoDB;
-INSERT INTO alembic_version (version_num) VALUES ('0001_v2');
+INSERT INTO alembic_version (version_num) VALUES ('0002_reglas_no_aplica');

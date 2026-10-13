@@ -10,7 +10,7 @@ mysql -u root --default-character-set=utf8mb4 < 03_datos_iniciales.sql
 
 | Archivo | Contenido |
 |---|---|
-| `01_schema.sql` | Tablas, llaves, índices, vistas y la revisión de Alembic `0001_v2` |
+| `01_schema.sql` | Tablas, llaves, índices, vistas y la revisión de Alembic más reciente |
 | `02_seed.sql` | Roles, norma NTC 5926-1:2012 (vigente), variantes, checklist de 169 ítems y parámetros |
 | `03_datos_iniciales.sql` | Usuarios de prueba (`@gmail.com`, contraseña `123456`) y un cliente con 2 edificios |
 
@@ -54,11 +54,14 @@ Además `RECHAZADO` y `ANULADO`. Cada cambio queda en `historial_estado`.
 
 - `v_seguimiento_equipo`: una fila por equipo cotizado con cotización, cliente, edificio, asesor, norma,
   última programación, inspección, informe de 1ª y de 2ª visita y certificado.
-- `v_inspeccion_item_aplica`: qué ítems de la norma de cada inspección aplican según sus variantes.
+- `v_inspeccion_item_aplica`: qué ítems de la norma de cada inspección aplican según sus variantes. Las reglas
+  (`checklist_item_variante`) salen de las fórmulas "NO APLICA" de la plantilla de informe 2012: un ítem aplica
+  solo si, en cada tipo de variante con reglas, la opción elegida está en su lista.
 
 ## Migraciones (Alembic)
 
-La base creada con estos scripts queda en la revisión `0001_v2`. Para cambios futuros, desde
+La base creada con estos scripts queda en la última revisión (`0002_reglas_no_aplica`). Una base creada
+antes se pone al día con `alembic upgrade head`. Para cambios futuros, desde
 `servilift-backend` con el entorno activado:
 
 ```bash

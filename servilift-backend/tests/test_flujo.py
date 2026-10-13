@@ -104,7 +104,7 @@ def primera_visita(H, id_prog, id_ce, nc_numeros):
             "id_variante_opcion": next(o["id_variante_opcion"] for o in t["opciones"] if o["codigo"] == VARIANTES[t["codigo"]])}
            for t in cat]
     d = ok(c.put(f"/inspecciones/{iid}/variantes", headers=H["INSPECTOR"], json=sel))
-    assert d["resumen"]["no_aplica"] == 23, d["resumen"]
+    assert d["resumen"]["no_aplica"] == 35, d["resumen"]  # según las fórmulas de la plantilla
     chk = ok(c.get(f"/inspecciones/{iid}/checklist", headers=H["INSPECTOR"]))
     items = [it for cg in chk["categorias"] for it in cg["items"]]
     assert len(items) == 169 and chk["norma"] == "NTC 5926-1:2012"
@@ -253,7 +253,7 @@ def main():
     assert c.get(f"/informes/{inf1['id_informe']}/vista-previa", headers=H["CLIENTE"]).status_code == 403
     apr1 = ok(c.post(f"/informes/{inf1['id_informe']}/aprobar", headers=H["DIRECTOR_TECNICO"], json={"firma_base64": png()}))
     assert apr1["estado"] == "APROBADO" and apr1["concepto"] == "NO_CONFORME" and apr1["numero_visita"] == 1, apr1
-    assert (apr1["total_leves"], apr1["total_graves"], apr1["total_muy_graves"], apr1["total_no_aplica"]) == (1, 1, 1, 23), apr1
+    assert (apr1["total_leves"], apr1["total_graves"], apr1["total_muy_graves"], apr1["total_no_aplica"]) == (1, 1, 1, 35), apr1
     assert ok(c.get(f"/informes/{inf1['id_informe']}/pdf", headers=H["CLIENTE"])).content[:4] == b"%PDF"
 
     # 5b. No conforme: el certificado queda bloqueado hasta la segunda visita
