@@ -11,6 +11,7 @@ import { Dato, Tarjeta, Titulo } from '@/componentes/Comunes';
 import { useDialogos } from '@/componentes/Dialogos';
 import { useCarga } from '@/hooks/useCarga';
 import { cola } from '@/offline/cola';
+import { numeroParametro, RECORRIDO_POR_DEFECTO, recorridoEstimado } from '@/logica/recorrido';
 import { Colores } from '@/tema';
 import { TIPOS_EQUIPO } from '../catalogos';
 import { clavesCache } from './precarga';
@@ -28,19 +29,6 @@ const CAMPOS_INFORME: [string, string][] = [
   ['tecnico_mantenimiento', 'Técnico de mantenimiento'], ['fecha_ultimo_mantenimiento', 'Último mantenimiento'],
   ['fecha_ultima_inspeccion', 'Última inspección'],
 ];
-
-// Recorrido aproximado: metros por parada x paradas + sobre recorrido (12 x 2,2 + 2,5 = 28,9 m).
-// Los dos valores son parámetros del sistema (Administración > Parámetros); estos son los de respaldo.
-const RECORRIDO_POR_DEFECTO = { porParada: 2.2, sobreRecorrido: 2.5 };
-const numeroParametro = (v: string | undefined, respaldo: number) => {
-  const n = Number(String(v ?? '').replace(',', '.'));
-  return v && Number.isFinite(n) && n >= 0 ? n : respaldo;
-};
-export function recorridoEstimado(paradas: string, porParada: number, sobreRecorrido: number): string {
-  const n = Number(paradas.trim().replace(',', '.'));
-  if (!paradas.trim() || !Number.isFinite(n) || n <= 0) return '';
-  return String(Math.round((n * porParada + sobreRecorrido) * 10) / 10);
-}
 
 const texto = (k: string, v: any) => (v === null || v === undefined ? '' : k.startsWith('fecha_') ? Fechas.mostrar(v) : String(v));
 

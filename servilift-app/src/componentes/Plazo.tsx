@@ -4,20 +4,16 @@ import { Button, Text } from 'react-native-paper';
 
 import { Api } from '@/api/cliente';
 import { Rol, useSesion } from '@/sesion/SesionContext';
-import { aclarar, Colores, fecha } from '@/tema';
+import { DatosPlazo, nivelPlazo, textoPlazo } from '@/logica/plazo';
+import { aclarar, Colores } from '@/tema';
 import { Icon } from './Comunes';
 import { useDialogos } from './Dialogos';
 
-export function PlazoCorreccion({ datos }: { datos: { plazo_dias?: number | null; fecha_limite_correccion?: string | null; dias_restantes?: number | null } }) {
-  const dias = datos.dias_restantes;
-  if (dias === null || dias === undefined) return null;
-  const vencido = dias < 0;
-  const color = vencido || dias <= 3 ? Colores.error : dias <= 10 ? Colores.alerta : Colores.info;
-  const texto = datos.plazo_dias === 0
-    ? 'Corrección inmediata (hallazgos muy graves)'
-    : vencido
-      ? `Plazo vencido hace ${-dias} días (límite ${fecha(datos.fecha_limite_correccion)})`
-      : `Plazo ${datos.plazo_dias} días · vence ${fecha(datos.fecha_limite_correccion)} · quedan ${dias} días`;
+export function PlazoCorreccion({ datos }: { datos: DatosPlazo }) {
+  const texto = textoPlazo(datos);
+  if (texto === null) return null;
+  const nivel = nivelPlazo(datos.dias_restantes as number);
+  const color = nivel === 'vencido' || nivel === 'urgente' ? Colores.error : nivel === 'proximo' ? Colores.alerta : Colores.info;
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: aclarar(color, 0.1), borderRadius: 8,
       paddingHorizontal: 8, paddingVertical: 4, alignSelf: 'flex-start' }}>

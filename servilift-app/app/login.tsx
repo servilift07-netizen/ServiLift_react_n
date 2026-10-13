@@ -5,6 +5,7 @@ import { Button, Card, Text, TextInput } from 'react-native-paper';
 
 import { Icon } from '@/componentes/Comunes';
 import { API_URL } from '@/config';
+import { validarIngreso } from '@/logica/login';
 import { useSesion } from '@/sesion/SesionContext';
 import { Colores } from '@/tema';
 
@@ -19,8 +20,9 @@ export default function Login() {
   if (usuario) return <Redirect href="/" />;
 
   const ingresar = async () => {
-    if (!correo.trim() || !clave) {
-      setError('Ingrese correo y contraseña');
+    const invalido = validarIngreso(correo, clave);
+    if (invalido) {
+      setError(invalido);
       return;
     }
     setEnviando(true);
