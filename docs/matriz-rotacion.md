@@ -4,22 +4,19 @@
 
 Capas: **Front** (app Expo) · **API** (FastAPI) · **BD** (integración) · **E2E** (Playwright)
 
-Reglas:
+**Equipo de una persona**: @esteban64-64 hace las pruebas de todas las capas. Por eso las reglas pensadas para
+un grupo se adaptan así:
 
-- Cada semana cambias de capa. No repites capa hasta haber pasado por las cuatro.
-- En la columna escribe la capa y, al cerrar la semana, el enlace a tu PR de tests.
-- Quien revisa tu PR debe haber trabajado en otra capa esa semana.
-
-> Completen la columna de integrantes con su usuario de GitHub. En S1 todo el grupo trabaja en E2E.
+- Cada semana se marca la **capa principal** (la que más avanza), pero se mantienen en verde las cuatro.
+- No hay otro integrante que revise: el PR se **autorrevisa** con el checklist de la plantilla y **solo se
+  fusiona con el CI en verde** (jobs `frontend` y `backend`) y con la integración y las E2E corridas en local.
+- En la columna se anota la capa y, al cerrar la semana, el enlace al PR.
 
 | Integrante (usuario GitHub) | S1 | S2 | S3 | S4 | S5 | S6 | S7 | S8 | S9 |
 |---|---|---|---|---|---|---|---|---|---|
-| @esteban64-64 | E2E | E2E (CI) + API | | | | | | | |
-| @integrante-2 | E2E | Front | | | | | | | |
-| @integrante-3 | E2E | API | | | | | | | |
-| @integrante-4 | E2E | BD | | | | | | | |
+| @esteban64-64 | E2E | E2E (CI) + API + Front | | | | | | | |
 
-Flujos E2E de la semana 1 (un flujo distinto por integrante; repártanlos):
+Flujos E2E de la semana 1 (todos a cargo de @esteban64-64):
 
 | Flujo | Archivo |
 |---|---|
@@ -54,7 +51,8 @@ Mutantes documentados en la semana 2 (cada uno lo detecta al menos un test):
 ## Regla de rama
 
 El repositorio es público: `main` se protege con un ruleset (*Require a pull request* + *Require status checks*
-con los jobs `frontend` y `backend`). Mientras se activa, la regla del grupo es: **nadie fusiona un PR en rojo**.
+con los jobs `frontend` y `backend`). Como el equipo es de una persona, no se exige aprobación de otro revisor:
+la regla es **no fusionar un PR en rojo** y autorrevisarlo con el checklist antes de fusionar.
 
 ## Registro de vocero aleatorio
 
