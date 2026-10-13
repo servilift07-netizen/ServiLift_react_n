@@ -43,6 +43,7 @@ export default function Login() {
             <TextInput
               mode="outlined"
               label="Correo"
+              accessibilityLabel="Correo"
               value={correo}
               onChangeText={setCorreo}
               autoCapitalize="none"
@@ -53,14 +54,16 @@ export default function Login() {
             <TextInput
               mode="outlined"
               label="Contraseña"
+              accessibilityLabel="Contraseña"
               value={clave}
               onChangeText={setClave}
               secureTextEntry={ocultar}
               onSubmitEditing={ingresar}
               left={<TextInput.Icon tabIndex={-1} icon="lock-outline" />}
-              right={<TextInput.Icon tabIndex={-1} icon={ocultar ? 'eye' : 'eye-off'} onPress={() => setOcultar(!ocultar)} />}
+              right={<TextInput.Icon tabIndex={-1} icon={ocultar ? 'eye' : 'eye-off'} onPress={() => setOcultar(!ocultar)}
+                accessibilityLabel={ocultar ? 'Mostrar contraseña' : 'Ocultar contraseña'} />}
             />
-            {error && <Text style={{ color: Colores.error }}>{error}</Text>}
+            {error && <Text role="alert" style={{ color: Colores.error }}>{error}</Text>}
             <Button mode="contained" onPress={ingresar} loading={enviando} disabled={enviando} contentStyle={{ height: 46 }}>
               Ingresar
             </Button>
