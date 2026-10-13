@@ -59,10 +59,12 @@ export function Dato({ etiqueta: e, valor }: { etiqueta: string; valor?: string 
   );
 }
 
+/** Tarjeta. Con onPress toda la tarjeta es un solo botón: el contenido (textos, listas, íconos)
+ *  no captura el toque, así se puede abrir tocando en cualquier punto. */
 export function Tarjeta({ children, style, onPress }: { children: ReactNode; style?: StyleProp<ViewStyle>; onPress?: () => void }) {
   return (
-    <Card mode="outlined" style={[s.tarjeta, style]} onPress={onPress}>
-      <Card.Content style={{ paddingVertical: 12 }}>{children}</Card.Content>
+    <Card mode="outlined" style={[s.tarjeta, style]} onPress={onPress} accessibilityRole={onPress ? 'button' : undefined}>
+      <Card.Content style={{ paddingVertical: 12 }} pointerEvents={onPress ? 'none' : 'auto'}>{children}</Card.Content>
     </Card>
   );
 }

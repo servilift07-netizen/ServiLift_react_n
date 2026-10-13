@@ -55,7 +55,17 @@ export default function Notificaciones() {
           )}
           {!c.datos.length && <Vacio texto="No tiene notificaciones" icono="bell-off-outline" />}
           {c.datos.map((n) => (
-            <Tarjeta key={n.id_notificacion}>
+            <Tarjeta key={n.id_notificacion} onPress={async () => {
+              if (!n.leida) {
+                try {
+                  await Api.put(`/notificaciones/${n.id_notificacion}/leida`);
+                } catch {
+                  // se marcará la próxima vez
+                }
+              }
+              await abrir(n);
+              void c.recargar();
+            }}>
               <List.Item
                 style={{ paddingHorizontal: 0 }}
                 title={n.titulo}
@@ -64,17 +74,6 @@ export default function Notificaciones() {
                 descriptionNumberOfLines={5}
                 left={() => <Icon nombre={n.leida ? 'bell-outline' : 'bell-ring'} color={n.leida ? Colores.gris : Colores.acento} />}
                 right={() => (n.enlace ? <Icon nombre="chevron-right" /> : null)}
-                onPress={async () => {
-                  if (!n.leida) {
-                    try {
-                      await Api.put(`/notificaciones/${n.id_notificacion}/leida`);
-                    } catch {
-                      // se marcará la próxima vez
-                    }
-                  }
-                  await abrir(n);
-                  void c.recargar();
-                }}
               />
             </Tarjeta>
           ))}
