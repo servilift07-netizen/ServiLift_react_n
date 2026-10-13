@@ -12,5 +12,5 @@ addopts = ["--cov", "--cov-report=term-missing", "-m", "not integracion"]
 source = ["app"]
 
 [tool.coverage.report]
-# Línea base de la semana 1: el umbral solo puede subir (ver docs/matriz-rotacion.md)
-fail_under = 41
+# Semana 2: el mayor entre el piso del 30% y la cobertura real. Solo puede subir (ver docs/matriz-rotacion.md)
+fail_under = 44
