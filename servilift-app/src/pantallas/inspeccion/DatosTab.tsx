@@ -29,6 +29,15 @@ const CAMPOS_INFORME: [string, string][] = [
   ['fecha_ultima_inspeccion', 'Última inspección'],
 ];
 
+// Recorrido aproximado: cada parada ~2,2 m más 2,5 m de sobre recorrido (12 paradas -> 28,9 m)
+const ALTURA_PARADA_M = 2.2;
+const SOBRE_RECORRIDO_M = 2.5;
+export function recorridoEstimado(paradas: string): string {
+  const n = Number(paradas.trim().replace(',', '.'));
+  if (!paradas.trim() || !Number.isFinite(n) || n <= 0) return '';
+  return String(Math.round((n * ALTURA_PARADA_M + SOBRE_RECORRIDO_M) * 10) / 10);
+}
+
 const texto = (k: string, v: any) => (v === null || v === undefined ? '' : k.startsWith('fecha_') ? Fechas.mostrar(v) : String(v));
 
 export default function DatosTab({ insp, editable, fijar }: { insp: any; editable: boolean; fijar: (fn: (d: any) => any) => void }) {
@@ -133,8 +142,12 @@ export default function DatosTab({ insp, editable, fijar }: { insp: any; editabl
             ? <CampoFecha key={k} style={campo} etiqueta={etq} valor={equipo[k]} deshabilitado={!editandoEquipo} maximo={Fechas.hoy()}
                 onCambiar={(t) => setEquipo((x) => ({ ...x, [k]: t }))} />
             : <TextInput key={k} style={campo} mode="outlined" dense label={etq} placeholder="NI" value={equipo[k]} disabled={!editandoEquipo}
-                keyboardType={numero ? 'decimal-pad' : 'default'} onChangeText={(t) => setEquipo((x) => ({ ...x, [k]: t }))} />))}
+                keyboardType={numero ? 'decimal-pad' : 'default'} onChangeText={(t) => setEquipo((x) => (k === 'numero_paradas'
+                  ? { ...x, numero_paradas: t, recorrido_m: recorridoEstimado(t) || x.recorrido_m } : { ...x, [k]: t }))} />))}
         </View>
+        <Text style={{ color: Colores.gris, fontSize: 12, marginTop: 4 }}>
+          El recorrido se calcula solo al escribir el número de paradas ({ALTURA_PARADA_M} m por parada + {SOBRE_RECORRIDO_M} m de sobre recorrido); se puede corregir.
+        </Text>
 
         <Titulo texto="Variantes del equipo" accion={editable && (
           <AccionesEdicion editando={editandoVariantes} onEditar={() => setCopiaVariantes(seleccion)} onGuardar={guardarVariantes}
