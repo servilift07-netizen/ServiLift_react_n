@@ -36,10 +36,20 @@ Anota la cobertura real al cerrar cada semana. El umbral de la semana siguiente 
 | Semana | Frontend (%) | Backend (%) | Umbral configurado para la semana siguiente |
 |---|---|---|---|
 | S1 (línea base) | 0 | 41 (*) | Front 0 · Back 41 |
+| S2 | 41,94 (líneas) | 44,49 | Front: líneas 41 · ramas 61 · funciones 32 · sentencias 43 — Back: 44 |
 
 (*) El 41% del backend sale **sin ningún test unitario**: pytest importa la app (al cargar la prueba de
 integración `tests/test_flujo.py`) y Python ejecuta las líneas de definición (`def`, `class`, decoradores).
 Es el ejemplo perfecto de que la cobertura dice qué se **ejecutó**, no qué se **verificó**.
+
+Mutantes documentados en la semana 2 (cada uno lo detecta al menos un test):
+
+| Mutante | Test que lo detecta |
+|---|---|
+| `dias <= 3` → `dias < 3` en `nivelPlazo` (app) | `should classify 3 remaining days as urgente` |
+| `n <= 0` → `n < 0` en `recorridoEstimado` (app) | `should return "0" -> "" at the boundary of a positive number of stops` |
+| `fecha_programada < hoy` → `<=` en `validar_horario` (backend) | `test_validar_horario_accepts_today_and_future_days[fecha0]` |
+| `min(plazos)` → `max(plazos)` en `calcular_plazo` (backend) | `test_calcular_plazo_uses_the_strictest_deadline_among_the_findings` |
 
 ## Regla de rama
 
