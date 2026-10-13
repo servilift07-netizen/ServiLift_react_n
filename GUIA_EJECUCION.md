@@ -92,7 +92,7 @@ cada ítem "Guardado en el teléfono". Al volver la señal se envían solos (men
 |---|---|---|---|
 | Unitarias de la app + cobertura | `servilift-app` | `npm test` | Nada (ni backend ni base) |
 | Unitarias del backend + cobertura | `servilift-backend` | `venv\Scripts\python -m pytest` | Nada (ni base ni red) |
-| Integración (flujo completo por la API) | `servilift-backend` | `set DB_NAME=servilift_v2_prueba` y `venv\Scripts\python -m pytest -m integracion --no-cov` | MySQL encendido |
+| Integración (flujo completo por la API) | `servilift-backend` | `$env:DB_NAME="servilift_v2_prueba"` (PowerShell) y luego `venv\Scripts\python -m pytest -m integracion --no-cov` | MySQL encendido |
 | E2E con Playwright | `e2e` | `pnpm test` (`pnpm test:ui` paso a paso, `pnpm report` reporte) | MySQL encendido |
 
 - Los comandos de unitarias fallan si la cobertura baja del umbral (`vitest.config.mts` y `pyproject.toml`).
