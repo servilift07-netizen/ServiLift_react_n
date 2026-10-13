@@ -66,10 +66,15 @@ ETIQUETAS_ESTADO = {
 }
 
 
+def puede_pasar(actual: str, nuevo: str) -> bool:
+    """True si la máquina de estados permite ir de "actual" a "nuevo"."""
+    return nuevo in TRANSICIONES.get(actual, set())
+
+
 def cambiar_estado(db: Session, ce: CotizacionEquipo, nuevo: str, usuario: Usuario | None, comentario: str | None = None):
     if ce.estado == nuevo:
         return
-    if nuevo not in TRANSICIONES.get(ce.estado, set()):
+    if not puede_pasar(ce.estado, nuevo):
         raise HTTPException(409, f"El equipo {ce.codigo_servicio} está en {ce.estado} y no puede pasar a {nuevo}")
     db.add(HistorialEstado(
         id_cotizacion_equipo=ce.id_cotizacion_equipo,

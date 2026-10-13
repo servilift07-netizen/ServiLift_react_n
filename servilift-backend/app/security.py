@@ -112,14 +112,16 @@ def _firma_archivo(ruta: str, vence: int) -> str:
     return hmac.new(settings.SECRET_KEY.encode("utf-8"), msg, hashlib.sha256).hexdigest()[:32]
 
 
-def url_archivo(ruta_relativa: str | None) -> str | None:
+def url_archivo(ruta_relativa: str | None, ahora_s: int | None = None) -> str | None:
     if not ruta_relativa:
         return None
-    ahora_s = int(time.time())
+    ahora_s = int(time.time()) if ahora_s is None else ahora_s
     vence = (ahora_s + settings.ARCHIVOS_URL_MINUTOS * 60) // 3600 * 3600 + 3600
     return f"/archivos/{ruta_relativa}?v={vence}&f={_firma_archivo(ruta_relativa, vence)}"
 
 
-def validar_url_archivo(ruta_relativa: str, vence: int, firma: str):
-    if vence < int(time.time()) or not hmac.compare_digest(firma, _firma_archivo(ruta_relativa, vence)):
+def validar_url_archivo(ruta_relativa: str, vence: int, firma: str, ahora_s: int | None = None):
+    """ahora_s solo se pasa en las pruebas, para no depender del reloj."""
+    ahora_s = int(time.time()) if ahora_s is None else ahora_s
+    if vence < ahora_s or not hmac.compare_digest(firma, _firma_archivo(ruta_relativa, vence)):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Enlace vencido o inválido")

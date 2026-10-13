@@ -16,6 +16,7 @@ from app.routes.cotizaciones import norma_vigente
 from app.routes.serializers import fila, norma_dict
 from app.security import ADMIN, INSPECTOR, get_current_user, require_roles
 from app.services.checklist import tipos_de_variante
+from app.services.reglas import numero_parametro
 
 router = APIRouter(tags=["Catálogos y notificaciones"])
 
@@ -160,12 +161,7 @@ def actualizar_parametro(clave: str, datos: ParametroIn, db: Session = Depends(g
     if not p:
         raise HTTPException(404, "Parámetro no encontrado")
     if clave in PARAMETROS_NUMERICOS:
-        try:
-            if float(datos.valor.replace(",", ".")) < 0:
-                raise ValueError
-        except ValueError:
-            raise HTTPException(400, "El valor debe ser un número mayor o igual a 0 (ej. 2.2)")
-        datos.valor = datos.valor.replace(",", ".")
+        datos.valor = numero_parametro(datos.valor)
     p.valor = datos.valor
     db.commit()
     return {clave: p.valor}
