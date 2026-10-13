@@ -3,7 +3,7 @@
 // 2ª visita: conforme solo si todo quedó corregido; si no, el equipo requiere cotización nueva.
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Image, ScrollView, View } from 'react-native';
+import { Image, Pressable, ScrollView, View } from 'react-native';
 import { Button, Chip, Text, TextInput } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -12,6 +12,7 @@ import { Selector } from '@/componentes/Campos';
 import { Cifra, Dato, EstadoCarga, EstadoChip, Fila, Tarjeta, Titulo } from '@/componentes/Comunes';
 import { useDialogos } from '@/componentes/Dialogos';
 import { BotonHistorial } from '@/componentes/Historial';
+import { VisorImagen } from '@/componentes/ImagenZoom';
 import { Segmentos } from '@/componentes/Segmentos';
 import { useCarga } from '@/hooks/useCarga';
 import { volver } from '@/navegacion';
@@ -129,6 +130,7 @@ function Resumen({ inf, insp, irA }: { inf: any; insp: any; irA: (p: string) => 
   const hallazgos = useCarga<any>(() => Api.get(`/inspecciones/${insp.id_inspeccion}/checklist`), [insp.id_inspeccion], { intervalo: null });
   const nc = (hallazgos.datos?.categorias ?? []).flatMap((c: any) => c.items).filter((x: any) => x.resultado?.resultado === 'NO_CUMPLE');
   const pdf = (path: string) => d.ejecutar(() => Api.abrirPdf(path));
+  const [fotoGrande, setFotoGrande] = useState<{ uri: string; titulo: string } | null>(null);
   return (
     <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: 40 }}>
       <View style={{ width: '100%', maxWidth: 900, alignSelf: 'center' }}>
@@ -187,7 +189,11 @@ function Resumen({ inf, insp, irA }: { inf: any; insp: any; irA: (p: string) => 
               <Text style={{ marginLeft: 40 }}>2ª visita: {etiqueta(x.resultado.estado_segunda_visita)}{x.resultado.observacion_segunda_visita ? ` · ${x.resultado.observacion_segunda_visita}` : ''}</Text>
             )}
             <Fila style={{ marginLeft: 40, marginTop: 6 }}>
-              {x.fotos.map((f: any) => <Image key={f.id_foto} source={{ uri: url(f.url_miniatura) }} style={{ width: 80, height: 80, borderRadius: 6 }} />)}
+              {x.fotos.map((f: any) => (
+                <Pressable key={f.id_foto} onPress={() => setFotoGrande({ uri: url(f.url), titulo: `Ítem ${x.numero}` })}>
+                  <Image source={{ uri: url(f.url_miniatura) }} style={{ width: 80, height: 80, borderRadius: 6 }} />
+                </Pressable>
+              ))}
             </Fila>
           </Tarjeta>
         ))}
@@ -203,6 +209,7 @@ function Resumen({ inf, insp, irA }: { inf: any; insp: any; irA: (p: string) => 
           </Fila>
         ))}
       </View>
+      <VisorImagen uri={fotoGrande?.uri ?? null} titulo={fotoGrande?.titulo} onCerrar={() => setFotoGrande(null)} />
     </ScrollView>
   );
 }

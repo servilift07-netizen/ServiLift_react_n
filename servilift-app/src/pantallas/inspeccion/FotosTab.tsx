@@ -7,6 +7,7 @@ import { Button, Checkbox, Dialog, FAB, Portal, Text, TextInput } from 'react-na
 import { Api, url } from '@/api/cliente';
 import { EstadoCarga, Icon, Vacio } from '@/componentes/Comunes';
 import { useDialogos } from '@/componentes/Dialogos';
+import { ImagenZoom } from '@/componentes/ImagenZoom';
 import { useCarga } from '@/hooks/useCarga';
 import { cola } from '@/offline/cola';
 import { useSincronizacion } from '@/offline/SincronizacionContext';
@@ -127,7 +128,7 @@ export default function FotosTab({ idInspeccion, editable, modoDirector }: { idI
         {vista && (
           <Dialog visible onDismiss={() => setVista(null)} style={{ maxWidth: 900, width: '96%', alignSelf: 'center' }}>
             <Dialog.Content style={{ gap: 10 }}>
-              <Image source={{ uri: vista.uriGrande }} resizeMode="contain" style={{ width: '100%', height: 360, backgroundColor: '#000' }} />
+              <ImagenZoom uri={vista.uriGrande} />
               {vista.pendiente
                 ? <Text style={{ color: Colores.alerta }}>Guardada en el teléfono: se sube sola cuando haya señal.</Text>
                 : <Text style={{ color: Colores.gris, fontSize: 12 }}>{vista.visita === 2 ? 'Segunda visita · ' : ''}{fechaHora(vista.fecha)}</Text>}

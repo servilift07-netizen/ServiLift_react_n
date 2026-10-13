@@ -1,13 +1,14 @@
 // Checklist de la norma del servicio, por zonas. Cada cambio se guarda en el teléfono al instante
 // y se sincroniza solo. En la segunda visita muestra solo los hallazgos para marcarlos corregidos / no corregidos.
 import { memo, useMemo, useRef, useState } from 'react';
-import { Image, ScrollView, View } from 'react-native';
+import { Image, Pressable, ScrollView, View } from 'react-native';
 import { Button, Chip, List, Text } from 'react-native-paper';
 
 import { Api, url } from '@/api/cliente';
 import { CampoDiferido } from '@/componentes/CampoDiferido';
 import { EstadoCarga, Icon } from '@/componentes/Comunes';
 import { useDialogos } from '@/componentes/Dialogos';
+import { VisorImagen } from '@/componentes/ImagenZoom';
 import { BarraProgreso, Segmentos } from '@/componentes/Segmentos';
 import { useCarga } from '@/hooks/useCarga';
 import { cola } from '@/offline/cola';
@@ -170,8 +171,9 @@ const Item = memo(function Item({ it, idInspeccion, editable, segundaVisita, fot
     guardar({ resultado: nuevo });
   };
 
-  const fotos = [...(it.fotos ?? []).map((f: any) => ({ clave: `s${f.id_foto}`, uri: url(f.url_miniatura), pendiente: false })),
-    ...fotosLocales.map((f) => ({ clave: f.id, uri: f.uri, pendiente: true }))];
+  const [fotoGrande, setFotoGrande] = useState<string | null>(null);
+  const fotos = [...(it.fotos ?? []).map((f: any) => ({ clave: `s${f.id_foto}`, uri: url(f.url_miniatura), uriGrande: url(f.url), pendiente: false })),
+    ...fotosLocales.map((f) => ({ clave: f.id, uri: f.uri, uriGrande: f.uri, pendiente: true }))];
   const sinFoto = resultado === 'NO_CUMPLE' && !fotos.length;
 
   return (
@@ -242,17 +244,18 @@ const Item = memo(function Item({ it, idInspeccion, editable, segundaVisita, fot
             </Button>
           )}
           {fotos.map((f) => (
-            <View key={f.clave}>
+            <Pressable key={f.clave} onPress={() => setFotoGrande(f.uriGrande)}>
               <Image source={{ uri: f.uri }} style={{ width: 60, height: 60, borderRadius: 6, backgroundColor: Colores.borde }} />
               {f.pendiente && (
                 <View style={{ position: 'absolute', right: 2, bottom: 2, backgroundColor: aclarar('#000000', 0.55), borderRadius: 8, padding: 2 }}>
                   <Icon nombre="cloud-upload-outline" tam={12} color="#fff" />
                 </View>
               )}
-            </View>
+            </Pressable>
           ))}
         </View>
       </View>
+      <VisorImagen uri={fotoGrande} titulo={`Ítem ${it.numero}`} onCerrar={() => setFotoGrande(null)} />
     </View>
   );
 });
