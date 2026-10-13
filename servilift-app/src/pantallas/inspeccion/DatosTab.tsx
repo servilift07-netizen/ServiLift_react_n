@@ -1,5 +1,6 @@
 // Datos del cliente/edificio/equipo (precargados), datos del ascensor, variantes, encabezado e instrumentos.
-// "Guardar" deja el cambio en el teléfono y lo envía cuando hay señal.
+// Datos del ascensor y variantes se abren con "Editar" y se cierran con "Guardar datos" (o "Cancelar").
+// Guardar deja el cambio en el teléfono y lo envía cuando hay señal.
 import { useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { Button, Chip, Text, TextInput } from 'react-native-paper';
@@ -50,6 +51,11 @@ export default function DatosTab({ insp, editable, fijar }: { insp: any; editabl
   }));
   const [conservacion, setConservacion] = useState<string>(insp.conservacion_informacion ?? 'DIGITAL');
   const [instrSel, setInstrSel] = useState<Set<number>>(() => new Set(insp.instrumentos.map((x: any) => x.id_instrumento)));
+  // Copia de lo que había al pulsar "Editar", para poder cancelar; null = sección en solo lectura
+  const [copiaEquipo, setCopiaEquipo] = useState<{ equipo: Record<string, string>; tipo: string } | null>(null);
+  const [copiaVariantes, setCopiaVariantes] = useState<Record<number, number> | null>(null);
+  const editandoEquipo = editable && !!copiaEquipo;
+  const editandoVariantes = editable && !!copiaVariantes;
 
   const guardarEquipo = async () => {
     const body: Record<string, any> = { tipo_equipo: tipoEquipo };
@@ -69,12 +75,14 @@ export default function DatosTab({ insp, editable, fijar }: { insp: any; editabl
     }
     await cola.put(id, 'equipo', `/inspecciones/${id}/equipo`, body, 'Datos del ascensor');
     fijar((x) => ({ ...x, datos_equipo: { ...x.datos_equipo, equipo: { ...x.datos_equipo?.equipo, ...body } } }));
+    setCopiaEquipo(null);
     d.mensaje('Datos del ascensor guardados');
   };
 
   const guardarVariantes = async () => {
     const lista = Object.entries(seleccion).map(([t, o]) => ({ id_variante_tipo: Number(t), id_variante_opcion: o }));
     await cola.put(id, 'variantes', `/inspecciones/${id}/variantes`, lista, 'Variantes del equipo');
+    setCopiaVariantes(null);
     const faltan = (variantes.datos ?? []).filter((t) => t.obligatoria && !seleccion[t.id_variante_tipo]).length;
     d.mensaje(faltan ? `Guardado. Faltan ${faltan} variantes` : 'Variantes guardadas: el checklist se ajusta al sincronizar');
   };
@@ -112,24 +120,31 @@ export default function DatosTab({ insp, editable, fijar }: { insp: any; editabl
           <Dato etiqueta="Avance (servidor)" valor={`${r.calificados ?? 0} calificados · ${r.total_no_cumple ?? 0} no cumple · ${r.no_aplica ?? 0} no aplica`} />
         </Tarjeta>
 
-        <Titulo texto="Datos del ascensor" accion={editable && <Button mode="contained-tonal" onPress={guardarEquipo}>Guardar</Button>} />
+        <Titulo texto="Datos del ascensor" accion={editable && (
+          <AccionesEdicion editando={editandoEquipo} onEditar={() => setCopiaEquipo({ equipo, tipo: tipoEquipo })}
+            onGuardar={guardarEquipo}
+            onCancelar={() => { if (copiaEquipo) { setEquipo(copiaEquipo.equipo); setTipoEquipo(copiaEquipo.tipo); } setCopiaEquipo(null); }} />
+        )} />
         <Text style={{ color: Colores.gris, fontSize: 12, marginBottom: 8 }}>Los verifica el inspector en sitio; quedan en el equipo y en el informe.</Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-          <Selector style={campo} etiqueta="Tipo de equipo" valor={tipoEquipo} opciones={TIPOS_EQUIPO} deshabilitado={!editable}
+          <Selector style={campo} etiqueta="Tipo de equipo" valor={tipoEquipo} opciones={TIPOS_EQUIPO} deshabilitado={!editandoEquipo}
             onCambiar={(v) => v && setTipoEquipo(v)} />
           {CAMPOS_EQUIPO.map(([k, etq, numero]) => (k.startsWith('fecha_')
-            ? <CampoFecha key={k} style={campo} etiqueta={etq} valor={equipo[k]} deshabilitado={!editable} maximo={Fechas.hoy()}
+            ? <CampoFecha key={k} style={campo} etiqueta={etq} valor={equipo[k]} deshabilitado={!editandoEquipo} maximo={Fechas.hoy()}
                 onCambiar={(t) => setEquipo((x) => ({ ...x, [k]: t }))} />
-            : <TextInput key={k} style={campo} mode="outlined" dense label={etq} placeholder="NI" value={equipo[k]} disabled={!editable}
+            : <TextInput key={k} style={campo} mode="outlined" dense label={etq} placeholder="NI" value={equipo[k]} disabled={!editandoEquipo}
                 keyboardType={numero ? 'decimal-pad' : 'default'} onChangeText={(t) => setEquipo((x) => ({ ...x, [k]: t }))} />))}
         </View>
 
-        <Titulo texto="Variantes del equipo" accion={editable && <Button mode="contained-tonal" onPress={guardarVariantes}>Guardar</Button>} />
+        <Titulo texto="Variantes del equipo" accion={editable && (
+          <AccionesEdicion editando={editandoVariantes} onEditar={() => setCopiaVariantes(seleccion)} onGuardar={guardarVariantes}
+            onCancelar={() => { if (copiaVariantes) setSeleccion(copiaVariantes); setCopiaVariantes(null); }} />
+        )} />
         <Text style={{ color: Colores.gris, fontSize: 12, marginBottom: 8 }}>Según las variantes, los ítems que no aplican se marcan solos como "No aplica".</Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
           {(variantes.datos ?? []).map((t) => (
             <Selector key={t.id_variante_tipo} style={campo} etiqueta={t.nombre + (t.obligatoria ? ' *' : '')}
-              valor={seleccion[t.id_variante_tipo] ?? null} deshabilitado={!editable}
+              valor={seleccion[t.id_variante_tipo] ?? null} deshabilitado={!editandoVariantes}
               opciones={t.opciones.map((o: any) => ({ valor: o.id_variante_opcion, texto: o.nombre }))}
               onCambiar={(v) => v && setSeleccion((x) => ({ ...x, [t.id_variante_tipo]: v }))} />
           ))}
@@ -168,5 +183,17 @@ export default function DatosTab({ insp, editable, fijar }: { insp: any; editabl
         {editable && <Text style={{ color: Colores.gris, fontSize: 12, marginTop: 6 }}>Los instrumentos se guardan con "Datos del informe".</Text>}
       </View>
     </ScrollView>
+  );
+}
+
+/** "Editar" en solo lectura; "Cancelar" y "Guardar datos" mientras se edita. */
+function AccionesEdicion({ editando, onEditar, onGuardar, onCancelar }:
+  { editando: boolean; onEditar: () => void; onGuardar: () => void; onCancelar: () => void }) {
+  if (!editando) return <Button mode="outlined" icon="pencil" onPress={onEditar}>Editar</Button>;
+  return (
+    <View style={{ flexDirection: 'row', gap: 6 }}>
+      <Button onPress={onCancelar}>Cancelar</Button>
+      <Button mode="contained" icon="content-save" onPress={onGuardar}>Guardar datos</Button>
+    </View>
   );
 }
