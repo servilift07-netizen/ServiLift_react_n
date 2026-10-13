@@ -11,7 +11,7 @@
 # XAMPP no se modifica: si algo sale mal, sigue funcionando como antes.
 #
 # Si XAMPP está en otro PC: allá genere el respaldo con
-#   C:\xampp\mysql\bin\mysqldump -uroot --default-character-set=utf8mb4 --single-transaction --routines --triggers --databases servilift_db --result-file=servilift_db.sql
+#   C:\xampp\mysql\bin\mysqldump -uroot --default-character-set=utf8mb4 --single-transaction --hex-blob --routines --triggers --databases servilift_db --result-file=servilift_db.sql
 # cópielo a este PC y cárguelo sin XAMPP (se omiten el paso 2 y la comparación con XAMPP):
 #   powershell -ExecutionPolicy Bypass -File .\database\migrar_xampp_a_docker.ps1 -Respaldo C:\ruta\servilift_db.sql
 
@@ -59,16 +59,18 @@ if ($Respaldo) {
     Copy-Item $Respaldo $archivo
 } else {
     Paso "Respaldando $Base de XAMPP"
-    Ejecutar { & (Join-Path $MysqlBin "mysqldump.exe") -uroot --default-character-set=utf8mb4 --single-transaction `
+    Ejecutar { & (Join-Path $MysqlBin "mysqldump.exe") -uroot --default-character-set=utf8mb4 --single-transaction --hex-blob `
             --routines --triggers --databases $Base "--result-file=$archivo" } "respaldar $Base (¿MySQL de XAMPP encendido?)"
 }
-$texto = [IO.File]::ReadAllText($archivo, [Text.Encoding]::UTF8)
+# Latin-1 conserva cada byte tal cual: leerlo como UTF-8 dañaría los BLOB (contraseñas) de un respaldo sin --hex-blob
+$latin1 = [Text.Encoding]::GetEncoding(28591)
+$texto = [IO.File]::ReadAllText($archivo, $latin1)
 if ($texto -notmatch "CREATE DATABASE[^;]*``$Base``") {
     throw "El respaldo no crea la base ${Base}: genérelo con mysqldump --databases $Base"
 }
 # Las vistas traen DEFINER=`root`@`localhost` de XAMPP: se quita para que en Docker las cree el usuario que importa
 $texto = [regex]::Replace($texto, 'DEFINER=`[^`]+`@`[^`]+`\s*', '')
-[IO.File]::WriteAllText($archivo, $texto, (New-Object Text.UTF8Encoding $false))
+[IO.File]::WriteAllText($archivo, $texto, $latin1)
 Write-Host "   $archivo"
 
 Paso "Cargando el respaldo en Docker (reemplaza $Base del contenedor)"
