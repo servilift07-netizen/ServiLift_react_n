@@ -52,7 +52,14 @@ Push-Location $backend
 try {
     # Crea .venv e instala exactamente lo de uv.lock (incluye las herramientas de pruebas)
     Ejecutar { uv sync --locked } "instalar dependencias del backend"
+    $nuevo = -not (Test-Path ".env")
     CopiarEnv $backend
+    # .env.example apunta a la base de Docker; con -ConBaseDeDatos se usa la de XAMPP (root sin clave, 3306)
+    if ($nuevo -and $ConBaseDeDatos) {
+        (Get-Content ".env") -replace '^DB_USER=.*', 'DB_USER=root' -replace '^DB_PASSWORD=.*', 'DB_PASSWORD=' `
+            -replace '^DB_PORT=.*', 'DB_PORT=3306' | Set-Content ".env" -Encoding UTF8
+        Write-Host "   .env apuntando al MySQL de XAMPP"
+    }
 } finally { Pop-Location }
 
 Paso "App (servilift-app): dependencias de Expo"

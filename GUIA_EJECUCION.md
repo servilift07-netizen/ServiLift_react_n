@@ -2,22 +2,42 @@
 
 Carpeta del proyecto: `C:\Users\PC\Documents\Sena\LiftSafe\servi lift react`
 
-Requisitos: Git, XAMPP (MariaDB), Python 3.13, Node.js 22+ y, para el celular, la app **Expo Go**
-(Play Store / App Store) o Android Studio. Las pruebas E2E usan además pnpm (el instalador lo agrega).
+Requisitos: Git, **Docker Desktop** (base de datos), **uv** (backend; el instalador lo agrega), Node.js 22+ y,
+para el celular, la app **Expo Go** (Play Store / App Store) o Android Studio. Las pruebas E2E usan además pnpm
+(el instalador lo agrega). XAMPP sigue sirviendo como alternativa a Docker (ver "Base en XAMPP").
 
 ## 0. En un PC nuevo: instalación automática
 ```
 git clone -b version-2.1 https://github.com/servilift07-netizen/ServiLift_react_n.git "servi lift react"
 cd "servi lift react"
-powershell -ExecutionPolicy Bypass -File .\instalar.ps1 -ConBaseDeDatos
+powershell -ExecutionPolicy Bypass -File .\instalar.ps1
+docker compose up -d
 ```
-El script crea el entorno virtual del backend, instala las dependencias de la app y de Playwright, copia los
-`.env` de ejemplo y (con `-ConBaseDeDatos` y MySQL encendido en XAMPP) crea `servilift_db` y la base de
-pruebas `servilift_v2_prueba`. No modifica nada que ya exista. Después siga en el paso 2 (cada vez que vaya a trabajar).
+El script instala uv y las dependencias del backend, de la app y de Playwright, y copia los `.env` de ejemplo
+(ya apuntan a la base de Docker). `docker compose up -d` crea la base la primera vez. No modifica nada que ya exista.
+Después siga en el paso 2 (cada vez que vaya a trabajar).
 
-## 1. Base de datos
-1. Abra el **Panel de control de XAMPP** y pulse **Start** en **MySQL**.
-2. Solo la primera vez (si ya tiene una `servilift_db` de la versión anterior, respáldela y bórrela antes):
+## 1. Base de datos (Docker)
+1. Abra **Docker Desktop** y espere a que diga *Engine running*.
+2. Desde la carpeta del proyecto:
+   ```
+   docker compose up -d
+   docker compose ps          # la base "servilift-db" debe quedar "healthy"
+   ```
+   La primera vez crea `servilift_db` y la base de pruebas `servilift_v2_prueba` con los scripts de `database/`.
+   Queda en el puerto **3307** (usuario `servilift`, contraseña `servilift`) para no chocar con XAMPP.
+   Los datos se guardan en el volumen `servilift-datos`: `docker compose stop` la apaga sin borrar nada.
+3. **Pasar los datos que ya tiene en XAMPP** (una sola vez, con XAMPP y Docker encendidos):
+   ```
+   powershell -ExecutionPolicy Bypass -File .\database\migrar_xampp_a_docker.ps1
+   ```
+   Respalda `servilift_db` de XAMPP en `database\servilift_db_xampp_<fecha>.sql`, lo carga en Docker y compara
+   las tablas. Luego ponga en `servilift-backend\.env` los valores de `.env.example` (puerto 3307).
+4. Una base creada antes se pone al día con las migraciones: `cd servilift-backend` y `uv run alembic upgrade head`.
+
+### Base en XAMPP (alternativa sin Docker)
+1. Abra el **Panel de control de XAMPP** y pulse **Start** en **MySQL**; en `.env` use `DB_USER=root`, `DB_PASSWORD=` y `DB_PORT=3306`.
+2. Solo la primera vez (o `instalar.ps1 -ConBaseDeDatos`):
    ```
    cd "C:\Users\PC\Documents\Sena\LiftSafe\servi lift react\database"
    C:\xampp\mysql\bin\mysql -u root --default-character-set=utf8mb4 < 01_schema.sql
@@ -106,6 +126,8 @@ cada ítem "Guardado en el teléfono". Al volver la señal se envían solos (men
 |---|---|
 | Login: "Sin conexión con el servidor" | El backend no está encendido o `EXPO_PUBLIC_API_URL` es incorrecta |
 | Cambié `.env` de la app y no toma la IP | Detenga Expo y vuelva a ejecutar `npx expo start --clear` |
-| Error de conexión a la base | MySQL no está encendido en XAMPP |
+| Error de conexión a la base | La base no está encendida: `docker compose up -d` (o MySQL en XAMPP) y revise `DB_PORT` en `.env` |
+| Docker: "WSL2 no se puede iniciar porque la virtualización no está habilitada" | Active la virtualización (Intel VT-x / AMD-V o SVM) en la BIOS/UEFI del PC y reinicie |
+| Docker: "port 3307 is already allocated" | Otro programa usa el 3307: cambie el puerto en `docker-compose.yml` y en `.env` |
 | `instalar.ps1` no se puede ejecutar | Use `powershell -ExecutionPolicy Bypass -File .\instalar.ps1` |
 | E2E: "port 8010 is already used" | Hay otro backend de pruebas abierto: ciérrelo o use `$env:API_PORT=8011; pnpm test` |
