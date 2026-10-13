@@ -2,6 +2,7 @@
 (01_schema.sql + 02_seed.sql). Crea sus propios usuarios y datos.
 
     python -m tests.test_flujo
+    pytest -m integracion --no-cov        (misma prueba desde pytest; necesita la base encendida)
 
 Recorre:
   A. Equipo 1: 1ª visita no conforme -> 2ª visita con todo corregido -> certificado.
@@ -16,6 +17,7 @@ import os
 import uuid
 from datetime import date, datetime, timedelta, timezone
 
+import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
 
@@ -336,6 +338,11 @@ def main():
     print(f"OK flujo completo {num}: informes {inf1['numero_informe']} y {inf2['numero_informe']}, "
           f"certificado {cert['numero_certificado']}; {inf2b['numero_informe']} cerrado no conforme -> "
           f"cotización nueva {cot2['numero_cotizacion']}")
+
+
+@pytest.mark.integracion
+def test_flujo_completo_de_cotizacion_a_certificado():
+    main()
 
 
 if __name__ == "__main__":

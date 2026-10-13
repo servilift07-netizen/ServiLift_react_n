@@ -1,0 +1,16 @@
+# Configuración de las pruebas del backend (las dependencias siguen en requirements.txt).
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+markers = ["integracion: necesita la base de datos encendida (se corre con: pytest -m integracion --no-cov)"]
+# Cada "pytest" mide la cobertura y falla si baja del umbral.
+# Por defecto solo corren las pruebas que no necesitan base de datos.
+addopts = ["--cov", "--cov-report=term-missing", "-m", "not integracion"]
+
+[tool.coverage.run]
+source = ["app"]
+
+[tool.coverage.report]
+# Línea base de la semana 1: el umbral solo puede subir (ver docs/matriz-rotacion.md)
+fail_under = 41

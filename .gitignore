@@ -23,3 +23,8 @@ database/servilift_db_*.sql
 .idea/
 .DS_Store
 Thumbs.db
+# Reportes de pruebas y cobertura (se generan en cada ejecución)
+**/coverage/
+**/htmlcov/
+**/.coverage
+**/.pytest_cache/
