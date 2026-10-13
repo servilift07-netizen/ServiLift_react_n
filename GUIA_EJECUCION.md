@@ -33,6 +33,9 @@ Después siga en el paso 2 (cada vez que vaya a trabajar).
    ```
    Respalda `servilift_db` de XAMPP en `database\servilift_db_xampp_<fecha>.sql`, lo carga en Docker y compara
    las tablas. Luego ponga en `servilift-backend\.env` los valores de `.env.example` (puerto 3307).
+   Si XAMPP está en otro PC, genere allá el respaldo con `mysqldump --databases servilift_db` (el comando exacto
+   está al inicio del script), cópielo y cárguelo con `.\database\migrar_xampp_a_docker.ps1 -Respaldo C:\ruta\servilift_db.sql`.
+   Copie también la carpeta `servilift-backend\storage` (fotos y PDF).
 4. Una base creada antes se pone al día con las migraciones: `cd servilift-backend` y `uv run alembic upgrade head`.
 
 ### Base en XAMPP (alternativa sin Docker)

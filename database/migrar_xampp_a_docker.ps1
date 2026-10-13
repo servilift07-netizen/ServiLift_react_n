@@ -9,8 +9,14 @@
 #   3. Reemplaza servilift_db en Docker por ese respaldo y le devuelve los permisos al usuario de la app.
 #   4. Compara cuántas filas hay en las tablas principales en XAMPP y en Docker.
 # XAMPP no se modifica: si algo sale mal, sigue funcionando como antes.
+#
+# Si XAMPP está en otro PC: allá genere el respaldo con
+#   C:\xampp\mysql\bin\mysqldump -uroot --default-character-set=utf8mb4 --single-transaction --routines --triggers --databases servilift_db --result-file=servilift_db.sql
+# cópielo a este PC y cárguelo sin XAMPP (se omiten el paso 2 y la comparación con XAMPP):
+#   powershell -ExecutionPolicy Bypass -File .\database\migrar_xampp_a_docker.ps1 -Respaldo C:\ruta\servilift_db.sql
 
 param(
+    [string]$Respaldo = "",
     [string]$MysqlBin = "C:\xampp\mysql\bin",
     [string]$Base = "servilift_db",
     [string]$ClaveRoot = "servilift-root",
@@ -44,32 +50,49 @@ for ($i = 0; $i -lt 60; $i++) {
 if (-not $lista) { throw "La base de Docker no quedó lista. Revise: docker compose logs db" }
 Write-Host "   lista"
 
-Paso "Respaldando $Base de XAMPP"
 $fecha = Get-Date -Format "yyyyMMdd_HHmm"
-$respaldo = Join-Path $raiz "database\servilift_db_xampp_$fecha.sql"
-Ejecutar { & (Join-Path $MysqlBin "mysqldump.exe") -uroot --default-character-set=utf8mb4 --single-transaction `
-        --routines --triggers --databases $Base "--result-file=$respaldo" } "respaldar $Base (¿MySQL de XAMPP encendido?)"
+$archivo = Join-Path $raiz "database\servilift_db_xampp_$fecha.sql"
+if ($Respaldo) {
+    Paso "Usando el respaldo $Respaldo"
+    if (-not (Test-Path $Respaldo)) { throw "No existe el archivo $Respaldo" }
+    # Se trabaja sobre una copia para no tocar el archivo original
+    Copy-Item $Respaldo $archivo
+} else {
+    Paso "Respaldando $Base de XAMPP"
+    Ejecutar { & (Join-Path $MysqlBin "mysqldump.exe") -uroot --default-character-set=utf8mb4 --single-transaction `
+            --routines --triggers --databases $Base "--result-file=$archivo" } "respaldar $Base (¿MySQL de XAMPP encendido?)"
+}
+$texto = [IO.File]::ReadAllText($archivo, [Text.Encoding]::UTF8)
+if ($texto -notmatch "CREATE DATABASE[^;]*``$Base``") {
+    throw "El respaldo no crea la base ${Base}: genérelo con mysqldump --databases $Base"
+}
 # Las vistas traen DEFINER=`root`@`localhost` de XAMPP: se quita para que en Docker las cree el usuario que importa
-$texto = [IO.File]::ReadAllText($respaldo, [Text.Encoding]::UTF8)
 $texto = [regex]::Replace($texto, 'DEFINER=`[^`]+`@`[^`]+`\s*', '')
-[IO.File]::WriteAllText($respaldo, $texto, (New-Object Text.UTF8Encoding $false))
-Write-Host "   $respaldo"
+[IO.File]::WriteAllText($archivo, $texto, (New-Object Text.UTF8Encoding $false))
+Write-Host "   $archivo"
 
 Paso "Cargando el respaldo en Docker (reemplaza $Base del contenedor)"
 EnDocker "DROP DATABASE IF EXISTS ``$Base``;" | Out-Null
-Ejecutar { docker cp $respaldo "${contenedor}:/tmp/migracion.sql" } "copiar el respaldo al contenedor"
+Ejecutar { docker cp $archivo "${contenedor}:/tmp/migracion.sql" } "copiar el respaldo al contenedor"
 Ejecutar { docker exec $contenedor sh -c "mariadb -uroot -p'$ClaveRoot' --default-character-set=utf8mb4 < /tmp/migracion.sql" } "importar el respaldo"
 docker exec $contenedor rm -f /tmp/migracion.sql | Out-Null
 EnDocker "GRANT ALL PRIVILEGES ON ``$Base``.* TO '$UsuarioApp'@'%'; FLUSH PRIVILEGES;" | Out-Null
 
-Paso "Comparando XAMPP y Docker"
 $tablas = "usuario", "cliente", "edificio", "equipo", "cotizacion", "inspeccion", "inspeccion_resultado", "inspeccion_foto", "informe", "certificado", "notificacion"
 $diferencias = 0
-foreach ($t in $tablas) {
-    $enXampp = & (Join-Path $MysqlBin "mysql.exe") -uroot -N -e "SELECT COUNT(*) FROM $t" $Base
-    $enDocker = EnDocker "SELECT COUNT(*) FROM $t" $Base
-    $marca = if ("$enXampp" -eq "$enDocker") { "ok" } else { $diferencias++; "DIFERENTE" }
-    Write-Host ("   {0,-22} XAMPP {1,6}   Docker {2,6}   {3}" -f $t, $enXampp, $enDocker, $marca)
+if ($Respaldo) {
+    Paso "Filas cargadas en Docker (compárelas con las de XAMPP en el otro PC)"
+    foreach ($t in $tablas) {
+        Write-Host ("   {0,-22} Docker {1,6}" -f $t, (EnDocker "SELECT COUNT(*) FROM $t" $Base))
+    }
+} else {
+    Paso "Comparando XAMPP y Docker"
+    foreach ($t in $tablas) {
+        $enXampp = & (Join-Path $MysqlBin "mysql.exe") -uroot -N -e "SELECT COUNT(*) FROM $t" $Base
+        $enDocker = EnDocker "SELECT COUNT(*) FROM $t" $Base
+        $marca = if ("$enXampp" -eq "$enDocker") { "ok" } else { $diferencias++; "DIFERENTE" }
+        Write-Host ("   {0,-22} XAMPP {1,6}   Docker {2,6}   {3}" -f $t, $enXampp, $enDocker, $marca)
+    }
 }
 $version = EnDocker "SELECT version_num FROM alembic_version" $Base
 Write-Host "   revisión de Alembic en Docker: $version"
