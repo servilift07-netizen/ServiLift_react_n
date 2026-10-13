@@ -1,10 +1,13 @@
-// Carga datos del backend con estados de cargando / error / reintentar.
-// Se actualiza sola cada `intervalo` mientras la pantalla está abierta, sin parpadear ni perder lo que se ve.
-// Con `cache`, lo último descargado se guarda en el teléfono: la pantalla abre aunque no haya señal.
+// Carga datos del backend sin hacer esperar al usuario:
+//  · Al volver a una pantalla se muestra al instante lo último que se vio (memoria) y se actualiza por detrás.
+//  · Se actualiza sola al volver a la pantalla, cada `intervalo` y después de cualquier guardado en el servidor.
+//  · Al actualizar no parpadea ni pierde lo que se ve; la rueda de carga solo aparece la primera vez.
+//  · Con `cache`, lo último descargado se guarda en el teléfono: la pantalla abre aunque no haya señal.
+import { useFocusEffect } from 'expo-router';
 import { DependencyList, useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 
-import { ApiError } from '@/api/cliente';
+import { alCambiarDatos, ApiError } from '@/api/cliente';
 import { REFRESCO_MS } from '@/config';
 import { guardarCache, leerCache } from '@/offline/almacenamiento';
 
@@ -25,23 +28,32 @@ export interface Carga<T> {
   fijar: (fn: (d: T) => T) => void;
 }
 
+/** Lo último que mostró cada consulta durante esta sesión de la app (se pierde al cerrarla). */
+const memoria = new Map<string, unknown>();
+
 export function useCarga<T>(cargar: () => Promise<T>, deps: DependencyList, opciones: Opciones = {}): Carga<T> {
   const { intervalo = REFRESCO_MS, cache = null } = opciones;
-  const [datos, setDatosEstado] = useState<{ clave: string; valor: T } | undefined>(undefined);
   // Los datos se marcan con la búsqueda que los produjo: al cambiar de filtro nunca se ven los de la anterior
   const claveDeps = JSON.stringify(deps);
+  // Identifica la consulta (pantalla + filtros) para recordar su último resultado
+  const claveMemoria = `${cache ?? cargar.toString()}|${claveDeps}`;
+  const [datos, setDatosEstado] = useState<{ clave: string; valor: T } | undefined>(() =>
+    memoria.has(claveMemoria) ? { clave: claveDeps, valor: memoria.get(claveMemoria) as T } : undefined);
   const claveActual = useRef(claveDeps);
   claveActual.current = claveDeps;
+  const memoriaActual = useRef(claveMemoria);
+  memoriaActual.current = claveMemoria;
   const setDatos = useCallback((v: T | undefined, clave = claveActual.current) => {
+    if (v !== undefined && clave === claveActual.current) memoria.set(memoriaActual.current, v);
     setDatosEstado(v === undefined ? undefined : { clave, valor: v });
   }, []);
   const [error, setError] = useState<string | null>(null);
-  const [cargando, setCargando] = useState(true);
+  const [cargando, setCargando] = useState(!memoria.has(claveMemoria));
   const [desdeCache, setDesdeCache] = useState(false);
   const [guardadoEn, setGuardadoEn] = useState<string | null>(null);
   const fn = useRef(cargar);
   fn.current = cargar;
-  const tieneDatos = useRef(false);
+  const tieneDatos = useRef(memoria.has(claveMemoria));
   const ocupado = useRef<string | null>(null); // clave de la carga en curso
   const vivo = useRef(true);
 
@@ -75,29 +87,47 @@ export function useCarga<T>(cargar: () => Promise<T>, deps: DependencyList, opci
 
   useEffect(() => {
     vivo.current = true;
-    tieneDatos.current = false;
-    setDatos(undefined);
-    setCargando(true);
     let cancelado = false;
-    (async () => {
-      if (cache) {
-        const g = await leerCache<T>(cache);
-        if (g && !cancelado && !tieneDatos.current) {
-          tieneDatos.current = true;
-          setDatos(g.datos, claveDeps);
-          setGuardadoEn(g.guardadoEn);
-          setDesdeCache(true);
-          setCargando(false);
+    if (memoria.has(memoriaActual.current)) {
+      // Se muestra al instante lo último que se vio y se actualiza en silencio
+      tieneDatos.current = true;
+      setDatosEstado({ clave: claveDeps, valor: memoria.get(memoriaActual.current) as T });
+      setCargando(false);
+      void recargar();
+    } else {
+      tieneDatos.current = false;
+      setDatosEstado(undefined);
+      setCargando(true);
+      (async () => {
+        if (cache) {
+          const g = await leerCache<T>(cache);
+          if (g && !cancelado && !tieneDatos.current) {
+            tieneDatos.current = true;
+            setDatos(g.datos, claveDeps);
+            setGuardadoEn(g.guardadoEn);
+            setDesdeCache(true);
+            setCargando(false);
+          }
         }
-      }
-      if (!cancelado) await recargar();
-    })();
+        if (!cancelado) await recargar();
+      })();
+    }
     return () => {
       cancelado = true;
       vivo.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
+
+  // Al volver a la pantalla (por ejemplo, después de crear algo en otra) se actualiza sola
+  const primeraVez = useRef(true);
+  useFocusEffect(useCallback(() => {
+    if (primeraVez.current) primeraVez.current = false;
+    else void recargar();
+  }, [recargar]));
+
+  // Después de cualquier guardado en el servidor, las pantallas abiertas se actualizan
+  useEffect(() => alCambiarDatos(() => void recargar()), [recargar]);
 
   useEffect(() => {
     if (!intervalo) return;
@@ -111,6 +141,7 @@ export function useCarga<T>(cargar: () => Promise<T>, deps: DependencyList, opci
     setDatosEstado((d) => {
       if (d === undefined) return d;
       const nuevo = cambio(d.valor);
+      if (d.clave === claveActual.current) memoria.set(memoriaActual.current, nuevo);
       if (cache) void guardarCache(cache, nuevo);
       return { clave: d.clave, valor: nuevo };
     });
@@ -118,4 +149,9 @@ export function useCarga<T>(cargar: () => Promise<T>, deps: DependencyList, opci
 
   const vigentes = datos && datos.clave === claveDeps ? datos.valor : undefined;
   return { datos: vigentes, error, cargando, desdeCache, guardadoEn, recargar, fijar };
+}
+
+/** Olvida lo recordado (al entrar o salir de la sesión, para no mostrar datos de otro usuario). */
+export function limpiarMemoria() {
+  memoria.clear();
 }

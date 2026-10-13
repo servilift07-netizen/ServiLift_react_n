@@ -25,6 +25,23 @@ export class ApiError extends Error {
 }
 
 let token: string | null = null;
+
+// Aviso de "algo cambió en el servidor": tras cada guardado exitoso las pantallas abiertas se
+// actualizan solas (agrupado para no repetir consultas cuando se guardan varias cosas seguidas).
+const oyentesCambio = new Set<() => void>();
+let relojCambio: ReturnType<typeof setTimeout> | null = null;
+
+export function alCambiarDatos(fn: () => void) {
+  oyentesCambio.add(fn);
+  return () => {
+    oyentesCambio.delete(fn);
+  };
+}
+
+function avisarCambio() {
+  if (relojCambio) clearTimeout(relojCambio);
+  relojCambio = setTimeout(() => oyentesCambio.forEach((fn) => fn()), 400);
+}
 let alExpirarSesion: (() => void) | null = null;
 
 export function fijarToken(t: string | null) {
@@ -93,7 +110,9 @@ async function pedir(metodo: string, path: string, opciones: { body?: unknown; q
   } finally {
     clearTimeout(reloj);
   }
-  return procesar(res);
+  const datos = await procesar(res);
+  if (metodo !== 'GET') avisarCambio();
+  return datos;
 }
 
 export interface ArchivoLocal {

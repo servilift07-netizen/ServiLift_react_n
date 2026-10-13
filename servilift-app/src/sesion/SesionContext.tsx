@@ -1,6 +1,7 @@
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 import { alExpirar, Api, ApiError, fijarToken } from '@/api/cliente';
+import { limpiarMemoria } from '@/hooks/useCarga';
 import * as almacen from './almacen';
 
 /** Roles (tabla rol.codigo del backend). */
@@ -45,6 +46,7 @@ export function SesionProvider({ children }: { children: ReactNode }) {
 
   const salir = useCallback(async () => {
     fijarToken(null);
+    limpiarMemoria();
     setUsuario(null);
     await almacen.borrar(K_TOKEN);
     await almacen.borrar(K_USUARIO);
@@ -78,6 +80,7 @@ export function SesionProvider({ children }: { children: ReactNode }) {
     try {
       const d = await Api.post('/auth/login', { correo: correo.trim(), contrasena });
       fijarToken(d.access_token);
+      limpiarMemoria();
       await almacen.guardar(K_TOKEN, d.access_token);
       await almacen.guardar(K_USUARIO, JSON.stringify(d.usuario));
       setUsuario(d.usuario);
