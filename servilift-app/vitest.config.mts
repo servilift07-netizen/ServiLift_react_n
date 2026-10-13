@@ -19,11 +19,21 @@ export default defineConfig({
         // Pantallas y componentes visuales: se prueban como componentes desde la semana 3
         'src/pantallas/**/*.tsx',
         'src/componentes/**',
-        // Variantes solo para navegador de adaptadores del teléfono (sin lógica propia)
-        'src/**/*.web.ts',
+        // Estado de React (contextos y hooks): se prueba con los componentes en la semana 3
+        'src/**/*Context.tsx',
+        'src/hooks/**',
+        // Adaptadores sin reglas propias: HTTP (fetch), almacenamiento del teléfono y sus variantes web.
+        // La cola sin conexión (src/offline/cola.ts) SÍ se mide: es lógica de negocio (semana 5, con dobles).
+        'src/api/**',
+        'src/offline/almacenamiento.ts',
+        'src/offline/fotosLocales*.ts',
+        'src/sesion/almacen*.ts',
+        // Configuración y arranque
+        'src/config.ts',
+        'src/navegacion.ts',
       ],
-      // Línea base de la semana 1: el umbral solo puede subir (ver docs/matriz-rotacion.md)
-      thresholds: { lines: 0, branches: 0, functions: 0, statements: 0 },
+      // Semana 2: el mayor entre el piso del 30% y la cobertura real. Solo puede subir (ver docs/matriz-rotacion.md)
+      thresholds: { lines: 41, branches: 61, functions: 32, statements: 43 },
     },
   },
 });
