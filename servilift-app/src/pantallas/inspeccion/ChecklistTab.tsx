@@ -154,6 +154,17 @@ const Item = memo(function Item({ it, idInspeccion, editable, segundaVisita, fot
       unidad_medida: v.unidad_medida, observacion: v.observacion, modificado_en: ahora });
   };
 
+  // Ítem que no aplica a este equipo (por sus variantes o datos): pedir confirmación antes de calificarlo
+  const calificar = async (v: string) => {
+    const nuevo = v === resultado ? 'NO_VERIFICADO' : v;
+    const aCalificado = nuevo === 'CUMPLE' || nuevo === 'NO_CUMPLE';
+    const yaCalificado = resultado === 'CUMPLE' || resultado === 'NO_CUMPLE';
+    if (!it.aplica && aCalificado && !yaCalificado && !(await d.confirmar('Ítem que no aplica',
+      `El ítem ${it.numero} no aplica a este equipo según sus variantes y datos (por eso está en N/A). `
+      + `¿Está seguro de calificarlo como "${nuevo === 'CUMPLE' ? 'Cumple' : 'No cumple'}"?`, 'Sí, calificar'))) return;
+    guardar({ resultado: nuevo });
+  };
+
   const fotos = [...(it.fotos ?? []).map((f: any) => ({ clave: `s${f.id_foto}`, uri: url(f.url_miniatura), pendiente: false })),
     ...fotosLocales.map((f) => ({ clave: f.id, uri: f.uri, pendiente: true }))];
   const sinFoto = resultado === 'NO_CUMPLE' && !fotos.length;
@@ -168,7 +179,13 @@ const Item = memo(function Item({ it, idInspeccion, editable, segundaVisita, fot
         </View>
       </View>
       {it.criterio_cumplimiento && <Text style={{ marginLeft: 38, fontSize: 12, color: Colores.alerta }}>{it.criterio_cumplimiento}</Text>}
-      {r?.no_aplica_automatico && <Text style={{ marginLeft: 38, fontSize: 12, color: Colores.gris }}>No aplica según las variantes del equipo</Text>}
+      {!it.aplica && (
+        <Text style={{ marginLeft: 38, fontSize: 12, color: resultado === 'CUMPLE' || resultado === 'NO_CUMPLE' ? Colores.alerta : Colores.gris }}>
+          {resultado === 'CUMPLE' || resultado === 'NO_CUMPLE'
+            ? 'No aplica según las variantes del equipo, pero el inspector lo calificó'
+            : 'No aplica según las variantes del equipo'}
+        </Text>
+      )}
       {it.pendiente && (
         <View style={{ marginLeft: 38, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
           <Icon nombre="cellphone-arrow-down" tam={14} color={Colores.alerta} />
@@ -195,7 +212,7 @@ const Item = memo(function Item({ it, idInspeccion, editable, segundaVisita, fot
             <Segmentos
               valor={resultado}
               deshabilitado={!editable}
-              onCambiar={(v) => guardar({ resultado: v === resultado ? 'NO_VERIFICADO' : v })}
+              onCambiar={(v) => void calificar(v)}
               opciones={[{ valor: 'CUMPLE', texto: 'Cumple', fondo: FONDO_RESULTADO.CUMPLE },
                 { valor: 'NO_CUMPLE', texto: 'No cumple', fondo: FONDO_RESULTADO.NO_CUMPLE },
                 { valor: 'NO_APLICA', texto: 'N/A', fondo: FONDO_RESULTADO.NO_APLICA }]}
