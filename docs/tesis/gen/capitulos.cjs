@@ -443,7 +443,7 @@ function instalacion() {
       ['Unitarias de la app', 'Vitest', 'servilift-app/tests (8 archivos, 110 pruebas)', 'npm test'],
       ['Unitarias del backend', 'pytest', 'servilift-backend/tests/unit (6 archivos, 103 pruebas)', 'uv run pytest'],
       ['Integración', 'pytest -m integracion', 'servilift-backend/tests/test_flujo.py (cotización a certificado, 2ª visita, devolución y cierre no conforme)', 'uv run pytest -m integracion'],
-      ['Extremo a extremo', 'Playwright (Chromium)', 'e2e/tests (5 archivos, 6 pruebas: ingreso, búsqueda de clientes y cierre de sesión); el PR #5 agrega el flujo completo por rol (7 pruebas más)', 'pnpm test'],
+      ['Extremo a extremo', 'Playwright (Chromium)', 'e2e/tests: 6 pruebas de ingreso, búsqueda de clientes y cierre de sesión; el PR #5 agrega 24 que recorren por pantallas el flujo completo, la segunda visita, los caminos alternos y la administración (30 en total)', 'pnpm test'],
     ], [2000, 2000, 3460, 1900]),
     H2('14.2. Cobertura'),
     ...tablaAPA('Umbral y cobertura medida', ['Proyecto', 'Umbral exigido', 'Cobertura medida'], [
