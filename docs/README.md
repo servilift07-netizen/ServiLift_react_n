@@ -6,7 +6,7 @@ desde https://mermaid.live. Las imágenes PNG ya exportadas están en [diagramas
 
 | Documento | Contenido |
 |---|---|
-| [tesis/](tesis/README.md) | **Documento Word completo** con la estructura del documento LiftSafe, diagramas por rol y diccionario de datos |
+| [tesis/](tesis/README.md) | **Documento Word completo** con normas APA, diagramas por rol y diccionario de datos |
 | [arquitectura.md](arquitectura.md) | Componentes, capas del backend y de la app, trabajo sin señal, seguridad y despliegue |
 | [casos-de-uso.md](casos-de-uso.md) | Actores (roles), diagrama de casos de uso y especificación de los casos principales |
 | [modelo-de-datos.md](modelo-de-datos.md) | Diagrama entidad-relación, diccionario de tablas, vistas y máquinas de estado |

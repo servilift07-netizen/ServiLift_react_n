@@ -1,4 +1,4 @@
-// Genera docs/tesis/ServiLift_Documentacion.docx con la estructura y el estilo del documento LiftSafe
+// Genera docs/tesis/ServiLift_Documentacion.docx con la estructura y el estilo del documento modelo
 // (normas APA, Times New Roman, tablas de requisitos y de casos de uso) y los diagramas de ../img.
 // Uso: python3 datos_doc.py && NODE_PATH=$(npm root -g) node documento.cjs
 const fs = require('fs');
@@ -137,7 +137,7 @@ function tablaRejilla(encabezados, filas, anchos, o = {}) {
   return new Table({ width: { size: anchos.reduce((a, c) => a + c, 0), type: WidthType.DXA }, columnWidths: anchos, rows });
 }
 
-// ---------------------------------------------------------------- tablas con el formato del documento LiftSafe
+// ---------------------------------------------------------------- tablas con el formato del documento modelo
 function tablaRequisito(codigo, nombre, descripcion, rol, titulo = 'REQUISITOS FUNCIONALES', extra) {
   const b = { top: LINEA, bottom: LINEA, left: LINEA, right: LINEA };
   const w = [1300, ANCHO - 1300];

@@ -1,6 +1,6 @@
 # Documento de la tesis
 
-`ServiLift_Documentacion.docx` es el documento completo del proyecto con la estructura del documento LiftSafe
+`ServiLift_Documentacion.docx` es el documento completo del proyecto con la estructura del documento modelo
 (normas APA, tablas de requisitos y de casos de uso) y los diagramas de `img/`.
 
 - `img/`: diagramas en SVG y PNG (casos de uso por rol, modelo de datos general, por área y por rol,

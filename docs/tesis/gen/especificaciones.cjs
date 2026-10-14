@@ -1,4 +1,4 @@
-// Especificación de los 27 casos de uso con el formato del documento LiftSafe (identificación, histórico y
+// Especificación de los 27 casos de uso con el formato del documento modelo (identificación, histórico y
 // definición con flujo normal, alterno y excepcional). Cada flujo es una lista de [actor, sistema]; los
 // alternos y excepcionales llevan además el número de paso: [paso, actor, sistema].
 module.exports = {

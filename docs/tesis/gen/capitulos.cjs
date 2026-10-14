@@ -16,12 +16,12 @@ function portada() {
     new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ type: 'png', data: fs.readFileSync(M.LOGO), transformation: { width: 110, height: 122 }, altText: { title: 'SENA', description: 'Logo del SENA', name: 'sena' } })] }),
     ...v(3),
     c('Proyecto Formativo: ServiLift', { bold: true }),
-    c('Sistema de gestión de inspecciones de ascensores (proyecto LiftSafe)'),
-    c('Documentación técnica de la versión 2'),
+    c('Sistema de gestión de inspecciones de ascensores'),
+    c('Documentación técnica'),
     ...v(3),
-    c('Instructores:'), c('Luz Mary Londoño Gutiérrez'), c('Jonathan David Espitia Rivera'),
+    c('Instructor:'), c('______________________________'),
     ...v(2),
-    c('Aprendices:'), c('Esteban Mejía Gómez'), c('Valentina Mendivil Correa'), c('Dayan Lorena Mape Forero'), c('Juan Felipe Mesa'), c('Luz Guio Figueroa'),
+    c('Aprendiz:'), c('Nelson Esteban Mejía Gómez'),
     ...v(3),
     c('Servicio Nacional de Aprendizaje - SENA'),
     ...v(1),
@@ -47,14 +47,14 @@ function indice(lista, paginas) {
 function resumen() {
   return [
     H1('Resumen'),
-    P('El presente documento describe ServiLift, la implementación del proyecto formativo LiftSafe: un sistema de información para gestionar de principio a fin el servicio de inspección técnica de ascensores de Ingeniería de Inspección Colombiana S.A.S. (INCOL S.A.S.), desde la cotización hasta la entrega del certificado con código QR, conforme a la NTC 5926-1:2012.'),
+    P('El presente documento describe ServiLift, un sistema de información para gestionar de principio a fin el servicio de inspección técnica de ascensores en organismos de certificación de transporte vertical que trabajan con la NTC 5926-1:2012, desde la cotización hasta la entrega del certificado con código QR, conforme a la NTC 5926-1:2012.'),
     P('La solución está formada por una aplicación multiplataforma en React Native con Expo, que corre en el celular del inspector y en el navegador del personal de oficina y del cliente; una API REST en FastAPI (Python 3.13) que concentra las reglas del negocio y los permisos de siete roles; y una base de datos MariaDB de 31 tablas y 2 vistas. El inspector trabaja sin señal: cada cambio se guarda primero en el teléfono y se sincroniza solo cuando vuelve la conexión, sin duplicar fotos ni firmas.'),
     P('El documento recoge el análisis del negocio, el levantamiento de requisitos a partir de entrevistas, los 27 casos de uso organizados por rol con su especificación, la arquitectura, el modelo de datos con su diccionario completo generado desde el esquema real, la API, la instalación con Docker y uv, y la estrategia de pruebas automatizadas (Vitest, pytest, Playwright, mutación manual e integración continua en GitHub Actions).'),
     new Paragraph({ spacing: { line: 480 }, indent: { firstLine: 720 }, children: [new TextRun({ text: 'Palabras clave: ', italics: true }), new TextRun('inspección de ascensores, NTC 5926-1, trabajo sin conexión, React Native, FastAPI, MariaDB, casos de uso.')] }),
     H1('Introducción'),
-    P('La inspección técnica de ascensores y equipos de transporte vertical es un proceso regulado que exige rigurosidad, trazabilidad y cumplimiento normativo para garantizar la seguridad de los usuarios. En INCOL S.A.S. este proceso se llevaba con planillas impresas, archivos de Excel independientes y fotografías sueltas tomadas con el celular, lo que dificultaba el control de la información, alargaba la entrega del informe y limitaba la calidad y la estandarización del resultado.'),
-    P('En los trimestres anteriores el equipo levantó los requisitos, diseñó el modelo UML y construyó una primera versión. Este documento presenta la versión 2, llamada ServiLift, que ya está implementada y probada: cubre la cotización, la programación de visitas, la inspección en campo con o sin señal, la revisión y firma del director técnico, la segunda visita de cierre de hallazgos, la emisión del certificado y su verificación pública por QR.'),
-    P('Siguiendo la estructura del documento de LiftSafe, primero se describe la línea de negocio, el problema y los objetivos; luego los requisitos y los casos de uso, que ahora se presentan **por rol** con diagramas propios; después la arquitectura y el modelo de datos, también desglosado **por área y por rol**; y al final la instalación, las pruebas y las conclusiones.'),
+    P('La inspección técnica de ascensores y equipos de transporte vertical es un proceso regulado que exige rigurosidad, trazabilidad y cumplimiento normativo para garantizar la seguridad de los usuarios. En los organismos de inspección este proceso se suele llevar con planillas impresas, archivos de Excel independientes y fotografías sueltas tomadas con el celular, lo que dificulta el control de la información, alarga la entrega del informe y limita la calidad y la estandarización del resultado.'),
+    P('ServiLift es un proyecto propio e independiente, dirigido a cualquier organismo de certificación de transporte vertical que aplique la NTC 5926-1. Este documento presenta el sistema ya implementado y probado, que cubre la cotización, la programación de visitas, la inspección en campo con o sin señal, la revisión y firma del director técnico, la segunda visita de cierre de hallazgos, la emisión del certificado y su verificación pública por QR.'),
+    P('Primero se describe la línea de negocio, el problema y los objetivos; luego los requisitos y los casos de uso, que ahora se presentan **por rol** con diagramas propios; después la arquitectura y el modelo de datos, también desglosado **por área y por rol**; y al final la instalación, las pruebas y las conclusiones.'),
   ];
 }
 
@@ -76,7 +76,7 @@ function negocio() {
       ['Área de certificados', 'Elabora, envía o anula el certificado con QR', 'CERTIFICADOS'],
       ['Administración del sistema', 'Gestiona usuarios, normas, parámetros e instrumentos', 'ADMIN'],
       ['Público', 'Verifica la autenticidad del certificado escaneando el QR', 'Sin sesión'],
-    ], [2400, 4560, 2400], 'Se amplía la tabla de actores de LiftSafe con los roles que quedaron implementados en la versión 2.'),
+    ], [2400, 4560, 2400], 'Cada actor del negocio corresponde a un rol implementado en ServiLift.'),
     H2('1.3. Marco normativo legal y técnico'),
     ...tablaAPA('Marco normativo relacionado con el proyecto', ['Norma o documento', 'Enfoque', 'Relación con ServiLift'], [
       ['NTC 5926-1:2012', 'Inspección técnica de ascensores en Colombia', 'Su lista de chequeo (169 ítems) es el checklist que califica el inspector; la tabla norma admite nuevas ediciones y las partes 2 y 3'],
@@ -93,10 +93,10 @@ function negocio() {
     vineta('Fortalece la seguridad de la información y facilita las auditorías.'),
 
     H1('2. Descripción del caso y problema actual'),
-    H2('2.1. Información de la empresa (INCOL S.A.S.)'),
-    P('Ingeniería de Inspección Colombiana S.A.S. es una empresa colombiana especializada en la inspección técnica de transporte vertical. Funciona como organismo de inspección independiente acreditado por el ONAC bajo la norma ISO/IEC 17020:2012 y evalúa el cumplimiento de la NTC 5926-1:2012 con un equipo de inspectores, coordinadores técnicos y personal administrativo.'),
-    H2('2.2. Proceso operativo antes de ServiLift'),
-    P('El servicio pasaba por cuatro áreas. El **área comercial** recibía la solicitud, cotizaba y enviaba la propuesta por correo. **Programación** acordaba fecha con el cliente y la empresa de mantenimiento y enviaba el itinerario al inspector en PDF. El **inspector** ejecutaba la inspección con los formatos R4-INS-P01-F01 (lista de chequeo), F06 (registro de visita) y F07 (informe NTC 5926-1) en Excel, con fotos sueltas del celular. La **coordinación técnica** revisaba el informe, autorizaba el certificado y lo publicaba para el cliente.'),
+    H2('2.1. Usuarios objetivo'),
+    P('ServiLift está dirigido a los organismos de certificación de transporte vertical en Colombia que evalúan el cumplimiento de la NTC 5926-1:2012, normalmente acreditados bajo la ISO/IEC 17020:2012, y que trabajan con un equipo de asesores comerciales, programadores de agenda, inspectores, directores técnicos y personal de certificados. No está atado a una empresa en particular: la norma, sus ítems y los datos de la empresa que aparecen en los informes se configuran como datos.'),
+    H2('2.2. Proceso operativo habitual sin un sistema'),
+    P('En un organismo de certificación el servicio suele pasar por cuatro áreas. El **área comercial** recibe la solicitud, cotiza y envía la propuesta por correo. **Programación** acuerda la fecha con el cliente y la empresa de mantenimiento y envía el itinerario al inspector. El **inspector** ejecuta la inspección con la lista de chequeo de la NTC 5926-1, el registro de visita y el informe en hojas de Excel, con fotos sueltas del celular. La **dirección técnica** revisa el informe, autoriza el certificado y lo publica para el cliente.'),
     H2('2.3. Problemas identificados'),
     ...tablaAPA('Impacto operativo del proceso manual', ['Tipo de impacto', 'Consecuencia', 'Cómo lo atiende ServiLift'], [
       ['Operativo', 'Más tiempo de ejecución y transcripción', 'El informe se arma solo con lo que registra el inspector en el celular'],
@@ -104,13 +104,13 @@ function negocio() {
       ['Administrativo', 'Información duplicada y dispersa', 'Una sola base de datos y un estado por equipo visible para todos los roles'],
       ['Económico', 'Reprocesos', 'Validación de pendientes antes de finalizar y devolución con observaciones'],
       ['Normativo', 'Riesgo frente a la NTC 5926-1 y la ISO 17020', 'Historial de estados, firmas, huella del PDF y certificado verificable'],
-    ], [1800, 3200, 4360], 'Elaboración propia a partir del documento de LiftSafe.'),
+    ], [1800, 3200, 4360], 'Elaboración propia.'),
     H2('2.4. Oportunidad de mejora'),
     P('La situación descrita justificó una plataforma centralizada con soporte sin conexión, sincronización automática, almacenamiento unificado de evidencias y automatización del flujo documental. ServiLift es esa plataforma, implementada y probada en esta versión.'),
 
     H1('3. Objetivos del proyecto'),
     H2('3.1. Objetivo general'),
-    P('Desarrollar un sistema de información web y móvil, con funcionamiento sin conexión, que digitalice el servicio de inspección técnica de ascensores de INCOL S.A.S. desde la cotización hasta el certificado, con trazabilidad completa y cumplimiento de la NTC 5926-1:2012.'),
+    P('Desarrollar un sistema de información web y móvil, con funcionamiento sin conexión, que digitalice el servicio de inspección técnica de ascensores desde la cotización hasta el certificado, con trazabilidad completa y cumplimiento de la NTC 5926-1:2012.'),
     H2('3.2. Objetivos específicos'),
     ...listaNum([
       'Analizar el proceso actual de inspección y levantar sus requisitos mediante entrevistas a los actores clave.',
@@ -123,8 +123,8 @@ function negocio() {
 
     H1('4. Alcance del proyecto'),
     H2('4.1. Alcance del proyecto académico'),
-    P('El proyecto comprende el análisis, el diseño, la implementación, las pruebas y la documentación del sistema dentro del proceso formativo del SENA. La puesta en producción en la infraestructura de la empresa queda fuera del alcance académico; el sistema se entrega listo para desplegarse con Docker.'),
-    H2('4.2. Alcance funcional implementado (versión 2)'),
+    P('El proyecto comprende el análisis, el diseño, la implementación, las pruebas y la documentación del sistema dentro del proceso formativo del SENA. La puesta en producción en la infraestructura de un organismo de certificación queda fuera del alcance académico; el sistema se entrega listo para desplegarse con Docker.'),
+    H2('4.2. Alcance funcional implementado'),
     ...listaNum([
       'Inicio de sesión con token y cambio de contraseña; siete roles con permisos por endpoint.',
       'Gestión de usuarios y del acceso al portal de cada cliente.',
@@ -177,7 +177,7 @@ function requisitos() {
   const out = [
     H1('5. Levantamiento de requisitos'),
     H2('5.1. Metodología'),
-    P('Los requisitos se levantaron con tres entrevistas semiestructuradas a actores clave: un técnico o inspector de campo, el coordinador de operaciones y el gerente de TI. De cada respuesta se extrajo una funcionalidad o una restricción, siguiendo el documento Requisitos_LiftSafe del repositorio del proyecto.'),
+    P('Los requisitos se levantaron con tres entrevistas semiestructuradas a actores clave: un técnico o inspector de campo, el coordinador de operaciones y el gerente de TI. De cada respuesta se extrajo una funcionalidad o una restricción.'),
     ...tablaAPA('Hallazgos de las entrevistas', ['Entrevistado', 'Cita representativa', 'Requisito derivado'], [
       ['Técnico de campo', '«muchas veces estamos en sótanos sin señal, pero igual debemos registrar la inspección»', 'Registro y consulta offline (F-001)'],
       ['Técnico de campo', '«sería mejor que la aplicación ya tenga plantillas con los campos específicos del equipo»', 'Plantillas adaptativas (F-002)'],
@@ -187,7 +187,7 @@ function requisitos() {
       ['Coordinador de operaciones', '«que los informes ya no pasen por papel, sino que yo los pueda aprobar digitalmente»', 'Flujos digitales (F-007)'],
       ['Gerente de TI', '«los técnicos solo deben ver lo que les corresponde»', 'Roles y accesos (F-010)'],
       ['Gerente de TI', '«los técnicos usan Android y algunos iOS, así que debe funcionar en ambos»', 'Compatibilidad (NF-008)'],
-    ], [2000, 4560, 2800], 'Fuente: Requisitos_LiftSafe (repositorio esteban64-64/Requisitos_LiftSafe).'),
+    ], [2000, 4560, 2800], 'Fuente: entrevistas del levantamiento de requisitos.'),
     H2('5.2. Trazabilidad de los requisitos consolidados'),
     P('Las tablas siguientes muestran cada requisito consolidado de las entrevistas, el caso de uso que lo atiende y su estado en la versión implementada. Los requisitos parciales se explican para que el lector sepa exactamente qué falta.'),
     ...tablaAPA('Requisitos funcionales de las entrevistas y su implementación', ['Código', 'Requisito', 'Estado', 'Casos de uso', 'Cómo se atiende'],
@@ -258,7 +258,7 @@ function casosDeUso() {
   out.push(tablaRejilla(['Caso de uso', ...corto], filas, [4000, 670, 670, 670, 670, 670, 670, 670, 670], { centro: [1, 2, 3, 4, 5, 6, 7, 8], tam: 17 }));
   out.push(notaP('Adm: administrador, Ase: asesor, Cli: cliente, Pro: programación, Ins: inspector, Dir: director técnico, Cer: certificados, Púb: público. El administrador puede además ejecutar cualquier caso de uso de otro rol.'));
   out.push(H2('8.4. Casos de uso por rol'));
-  out.push(P('Como en el documento de LiftSafe, cada rol tiene su propio diagrama de casos de uso. El caso de uso principal aparece en azul y sus acciones en ámbar: la flecha verde «include» marca una acción obligatoria y la naranja «extend» una opcional. Después de cada diagrama va la especificación de los casos de uso propios del rol; los comunes se especifican en la sección 8.5.'));
+  out.push(P('Cada rol tiene su propio diagrama de casos de uso. El caso de uso principal aparece en azul y sus acciones en ámbar: la flecha verde «include» marca una acción obligatoria y la naranja «extend» una opcional. Después de cada diagrama va la especificación de los casos de uso propios del rol; los comunes se especifican en la sección 8.5.'));
   let k = 1;
   Object.entries(D.roles).forEach(([nombre, rol]) => {
     out.push(H3(`8.4.${k++}. Actor: ${nombre}`));
@@ -382,7 +382,7 @@ function datos() {
   ], [3000, 6360]));
   out.push(H2('11.7. Migraciones'));
   out.push(...tablaAPA('Migraciones Alembic', ['Revisión', 'Cambio'], [
-    ['0001_v2_esquema_base', 'Esquema de la versión 2 completo.'],
+    ['0001_v2_esquema_base', 'Esquema base completo.'],
     ['0002_reglas_no_aplica', 'Reglas de «no aplica» por variante según la plantilla del informe 2012.'],
     ['0003_foso_minimo', 'El ítem 12 no aplica con foso menor a 1.500 mm.'],
     ['0004_parametros_recorrido', 'Metros por parada y sobre recorrido editables.'],
@@ -471,8 +471,8 @@ function instalacion() {
 function cierre() {
   return [
     H1('15. Conclusiones'),
-    P('ServiLift cumple el objetivo general: el servicio de inspección de ascensores de INCOL S.A.S. ya es un flujo digital de punta a punta, con trazabilidad en cada cambio de estado y con funcionamiento sin conexión para el inspector, que era la necesidad más repetida en las entrevistas.'),
-    P('El paso del diseño de LiftSafe a la implementación dejó un modelo de datos más completo (31 tablas frente a las 12 entidades iniciales), porque el trabajo real exigió separar el servicio por equipo, guardar la norma como dato, registrar el historial de estados y manejar dos visitas por servicio. Presentar los casos de uso y los datos por rol ayuda a validar con cada área que el sistema hace lo que esa área necesita y nada más.'),
+    P('ServiLift cumple el objetivo general: el servicio de inspección de ascensores ya es un flujo digital de punta a punta, con trazabilidad en cada cambio de estado y con funcionamiento sin conexión para el inspector, que era la necesidad más repetida en las entrevistas.'),
+    P('El paso del diseño inicial a la implementación dejó un modelo de datos más completo (31 tablas frente a las 12 entidades del primer modelo), porque el trabajo real exigió separar el servicio por equipo, guardar la norma como dato, registrar el historial de estados y manejar dos visitas por servicio. Presentar los casos de uso y los datos por rol ayuda a validar con cada área que el sistema hace lo que esa área necesita y nada más.'),
     P('Quedan como trabajo futuro la recuperación de contraseña por correo, el respaldo automático programado, los reportes exportables y la integración con sistemas contables, señalados en la trazabilidad de requisitos como parciales o pendientes.'),
     H1('Referencias'),
     ...[
@@ -484,7 +484,6 @@ function cierre() {
       'Congreso de la República de Colombia. (2012). Ley 1581 de 2012, por la cual se dictan disposiciones generales para la protección de datos personales.',
       'Congreso de la República de Colombia. (2011). Ley 1480 de 2011, Estatuto del Consumidor.',
       'MariaDB Foundation. (2026). MariaDB Server documentation. https://mariadb.com/kb',
-      'Mejía Gómez, E. (2025). Requisitos_LiftSafe [Repositorio]. GitHub. https://github.com/esteban64-64/Requisitos_LiftSafe',
       'SQLAlchemy. (2026). SQLAlchemy 2.0 documentation. https://docs.sqlalchemy.org',
     ].map((t) => new Paragraph({ children: [new TextRun(t)], spacing: { line: 480 }, indent: { left: 720, hanging: 720 } })),
   ];
@@ -496,7 +495,7 @@ const PAGINAS = process.env.SIN_PAGINAS ? null : (fs.existsSync(RUTA_PAG) ? JSON
 const cuerpo = [...resumen(), ...negocio(), ...requisitos(), ...casosDeUso(), ...flujo(), ...arquitectura(), ...datos(), ...api(), ...instalacion(), ...cierre()];
 
 const doc = new Document({
-  creator: 'Equipo ServiLift', title: 'ServiLift: documentación técnica', description: 'Proyecto formativo LiftSafe, versión 2',
+  creator: 'Equipo ServiLift', title: 'ServiLift: documentación técnica', description: 'Proyecto formativo ServiLift',
   styles: {
     default: { document: { run: { font: M.FUENTE, size: 24 } } },
     paragraphStyles: [
