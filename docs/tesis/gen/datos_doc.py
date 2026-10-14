@@ -25,7 +25,7 @@ DESC_TABLA = {
     "alembic_version": "Revisión de las migraciones Alembic aplicada a la base.",
     "cliente": "Persona o empresa que contrata la inspección (propiedad horizontal, empresa, persona natural o entidad pública), con su asesor.",
     "edificio": "Sedes o edificios del cliente donde están los equipos.",
-    "equipo": "Ascensores y montacargas con sus datos técnicos: paradas, recorrido, foso y capacidad.",
+    "equipo": "Ascensores con sus datos técnicos: paradas, recorrido, foso y capacidad.",
     "equipo_variante": "Variantes declaradas del equipo (tracción o hidráulico, tipo de máquina, etc.).",
     "norma": "Parte y edición de la NTC 5926 con sus plazos de corrección; una sola edición vigente por parte.",
     "checklist_categoria": "Capítulos o grupos de ítems de la norma.",
