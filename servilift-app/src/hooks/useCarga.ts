@@ -9,6 +9,7 @@ import { AppState } from 'react-native';
 
 import { alCambiarDatos, ApiError } from '@/api/cliente';
 import { REFRESCO_MS } from '@/config';
+import { alVolverALaApp } from '@/hooks/alVolver';
 import { guardarCache, leerCache } from '@/offline/almacenamiento';
 
 interface Opciones {
@@ -128,6 +129,9 @@ export function useCarga<T>(cargar: () => Promise<T>, deps: DependencyList, opci
 
   // Después de cualquier guardado en el servidor, las pantallas abiertas se actualizan
   useEffect(() => alCambiarDatos(() => void recargar()), [recargar]);
+
+  // Al volver a la app o a la ventana no se espera al siguiente intervalo
+  useEffect(() => alVolverALaApp(() => void recargar()), [recargar]);
 
   useEffect(() => {
     if (!intervalo) return;

@@ -6,9 +6,11 @@ import { Modal, Pressable, ScrollView, useWindowDimensions, View } from 'react-n
 import { Appbar, Badge, Divider, Text, TouchableRipple } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Api } from '@/api/cliente';
+import { alCambiarDatos, Api } from '@/api/cliente';
 import { Icon, Icono } from '@/componentes/Comunes';
 import { useDialogos } from '@/componentes/Dialogos';
+import { AVISOS_MS } from '@/config';
+import { alVolverALaApp } from '@/hooks/alVolver';
 import { volver } from '@/navegacion';
 import { useSincronizacion } from '@/offline/SincronizacionContext';
 import { Rol, useSesion } from '@/sesion/SesionContext';
@@ -148,9 +150,12 @@ function Notificaciones() {
   }, []);
   useEffect(() => {
     void contar();
-    const reloj = setInterval(contar, 30000);
+    const reloj = setInterval(contar, AVISOS_MS);
     return () => clearInterval(reloj);
   }, [contar, ruta]);
+  // Sin esperar al intervalo: tras guardar algo y al volver a la app o a la ventana
+  useEffect(() => alCambiarDatos(() => void contar()), [contar]);
+  useEffect(() => alVolverALaApp(() => void contar()), [contar]);
   return (
     <Pressable onPress={() => router.navigate('/notificaciones')} style={{ padding: 8 }} accessibilityLabel="Notificaciones">
       <Icon nombre="bell-outline" color="#fff" tam={24} />

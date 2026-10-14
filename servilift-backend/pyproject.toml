@@ -1,4 +1,39 @@
-# Configuración de las pruebas del backend (las dependencias siguen en requirements.txt).
+# Backend de ServiLift: dependencias, pruebas y cobertura. Se maneja con uv:
+#   uv sync                                   instala todo en .venv (según uv.lock)
+#   uv run uvicorn app.main:app --reload      levanta la API
+#   uv run pytest                             unitarias + cobertura
+
+[project]
+name = "servilift-backend"
+version = "2.1.0"
+description = "API FastAPI de ServiLift (inspección de ascensores NTC 5926)"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi==0.141.1",
+    "uvicorn==0.52.4",
+    "SQLAlchemy==2.0.52",
+    "PyMySQL==1.2.0",
+    "cryptography==50.0.0",
+    "pydantic==2.13.4",
+    "pydantic-settings==2.15.0",
+    "email-validator==2.3.0",
+    "python-jose==3.5.0",
+    "python-multipart==0.0.32",
+    "reportlab==4.2.0",
+    "pillow==12.3.0",
+    "httpx==0.28.1",
+    "alembic==1.16.5",
+]
+
+[dependency-groups]
+dev = [
+    "pytest==9.1.1",
+    "pytest-cov==7.1.0",
+]
+
+[tool.uv]
+# No es un paquete instalable: solo se usa para manejar el entorno y las dependencias
+package = false
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
