@@ -152,8 +152,11 @@ function tablaRequisito(codigo, nombre, descripcion, rol, titulo = 'REQUISITOS F
     new TableRow({ cantSplit: true, children: [celda(codigo, w[0], { negrita: true, rowSpan: filasDer.length, bordes: b, junto: true }), filasDer[0]] }),
     ...filasDer.slice(1).map((c) => new TableRow({ cantSplit: true, children: [c] })),
   ];
-  return [new Table({ width: { size: ANCHO, type: WidthType.DXA }, columnWidths: w, rows }), new Paragraph({ spacing: { after: 200 }, children: [] })];
+  return [new Table({ width: { size: ANCHO, type: WidthType.DXA }, columnWidths: w, rows }), separador(200)];
 }
+
+// Párrafo mínimo tras una tabla: si la tabla llena la página, no empuja una hoja en blanco.
+const separador = (alto = 0) => new Paragraph({ spacing: { before: 0, after: 0, line: alto || 20, lineRule: 'exact' }, children: [new TextRun({ text: '', size: 2 })] });
 
 // Especificación de caso de uso: una tabla de 6 columnas.
 const G = [900, 1500, 1800, 1500, 1800, 1860];
@@ -194,7 +197,7 @@ function tablaCU(id, rolCodigo) {
   return [
     new Paragraph({ children: [new TextRun({ text: `${id} ${cu.nombre}`, bold: true, italics: true })], spacing: { before: 0, after: 120 }, keepNext: true, pageBreakBefore: true }),
     new Table({ width: { size: ANCHO, type: WidthType.DXA }, columnWidths: G, rows }),
-    new Paragraph({ spacing: { after: 200 }, children: [] }),
+    separador(),
   ];
 }
 
