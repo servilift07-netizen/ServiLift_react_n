@@ -1,7 +1,7 @@
 // Gráficas del tablero de inicio (barras, columnas por mes y dona), dibujadas sin librerías externas.
 import { View } from 'react-native';
 import { Text } from 'react-native-paper';
-import Svg, { Circle } from 'react-native-svg';
+import Svg, { Circle, G } from 'react-native-svg';
 
 import { Colores, colorNombre } from '@/tema';
 
@@ -54,15 +54,18 @@ export function Dona({ datos }: { datos: DatoGrafica[] }) {
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 20 }}>
       <View style={{ width: 150, height: 150, alignItems: 'center', justifyContent: 'center' }}>
         <Svg width={150} height={150} style={{ position: 'absolute' }}>
-          {datos.map((d, i) => {
-            const largo = total ? (c * d.valor) / total : 0;
-            const arco = (
-              <Circle key={i} cx={75} cy={75} r={r} stroke={colorNombre(d.color, i)} strokeWidth={24} fill="none"
-                strokeDasharray={`${largo} ${c - largo}`} strokeDashoffset={-acumulado} rotation={-90} origin="75,75" />
-            );
-            acumulado += largo;
-            return arco;
-          })}
+          {/* El giro va como transform SVG: rotation/origin en la web genera el atributo inválido transform-origin */}
+          <G transform="rotate(-90 75 75)">
+            {datos.map((d, i) => {
+              const largo = total ? (c * d.valor) / total : 0;
+              const arco = (
+                <Circle key={i} cx={75} cy={75} r={r} stroke={colorNombre(d.color, i)} strokeWidth={24} fill="none"
+                  strokeDasharray={`${largo} ${c - largo}`} strokeDashoffset={-acumulado} />
+              );
+              acumulado += largo;
+              return arco;
+            })}
+          </G>
         </Svg>
         <Text style={{ fontSize: 24, fontWeight: '800' }}>{total}</Text>
         <Text style={{ fontSize: 11, color: Colores.gris }}>total</Text>
