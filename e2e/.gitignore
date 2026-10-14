@@ -1,0 +1,4 @@
+# Resultados de Playwright (se generan en cada ejecución)
+playwright-report/
+test-results/
+blob-report/

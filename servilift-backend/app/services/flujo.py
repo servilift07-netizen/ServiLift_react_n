@@ -66,10 +66,15 @@ ETIQUETAS_ESTADO = {
 }
 
 
+def puede_pasar(actual: str, nuevo: str) -> bool:
+    """True si la máquina de estados permite ir de "actual" a "nuevo"."""
+    return nuevo in TRANSICIONES.get(actual, set())
+
+
 def cambiar_estado(db: Session, ce: CotizacionEquipo, nuevo: str, usuario: Usuario | None, comentario: str | None = None):
     if ce.estado == nuevo:
         return
-    if nuevo not in TRANSICIONES.get(ce.estado, set()):
+    if not puede_pasar(ce.estado, nuevo):
         raise HTTPException(409, f"El equipo {ce.codigo_servicio} está en {ce.estado} y no puede pasar a {nuevo}")
     db.add(HistorialEstado(
         id_cotizacion_equipo=ce.id_cotizacion_equipo,
@@ -104,6 +109,39 @@ def _actualizar_estado_cotizacion(cot: Cotizacion):
 # ============================================
 # NOTIFICACIONES
 # ============================================
+# Una notificación de trabajo deja de estar "vigente" cuando ese trabajo ya se hizo: así el inicio solo muestra
+# lo que el usuario todavía tiene por atender (la notificación sigue en la lista de Notificaciones).
+ESTADOS_EQUIPO_POR_INSPECCIONAR = {"PROGRAMADO", "EN_INSPECCION"}
+ESTADOS_INSPECCION_POR_TRABAJAR = {"EN_CURSO", "DEVUELTA", "EN_SEGUNDA_VISITA"}
+
+
+def programacion_pendiente(p, ultima_programacion_de) -> bool:
+    """True si la visita aún tiene algún equipo por inspeccionar.
+    ultima_programacion_de(id_cotizacion_equipo) da la última programación activa del equipo: si el equipo ya
+    tiene otra visita más reciente (p. ej. la 2ª), esta programación vieja ya no cuenta como pendiente."""
+    if p is None or p.estado in ("CANCELADA", "REALIZADA"):
+        return False
+    return any(pe.cotizacion_equipo.estado in ESTADOS_EQUIPO_POR_INSPECCIONAR
+               and ultima_programacion_de(pe.id_cotizacion_equipo) == p.id_programacion for pe in p.equipos)
+
+
+def notificacion_vigente(n, rol: str = "", programacion=None, inspeccion=None, informe=None,
+                         ultima_programacion_de=lambda _: None) -> bool:
+    """Se decide por el enlace de la notificación (el tipo se repite entre avisos distintos):
+    - /inspecciones/agenda (nueva o reprogramada): vigente mientras la visita tenga equipos por inspeccionar.
+    - /inspecciones/{id} (informe devuelto): vigente mientras la inspección siga en manos del inspector.
+    - /informes/{id} para el director técnico: vigente mientras el informe espere su revisión.
+    - El resto (avisos informativos, cotizaciones, certificados...): siempre."""
+    enlace = n.enlace or ""
+    if enlace == "/inspecciones/agenda":
+        return programacion_pendiente(programacion, ultima_programacion_de)
+    if enlace.startswith("/inspecciones/"):
+        return inspeccion is not None and inspeccion.estado in ESTADOS_INSPECCION_POR_TRABAJAR
+    if enlace.startswith("/informes/") and rol == "DIRECTOR_TECNICO":
+        return informe is not None and informe.estado == "PENDIENTE_REVISION"
+    return True
+
+
 def notificar(db: Session, usuarios, titulo: str, mensaje: str, tipo: str, id_referencia: int | None = None,
               enlace: str | None = None):
     for u in usuarios:

@@ -2,6 +2,7 @@
 (01_schema.sql + 02_seed.sql). Crea sus propios usuarios y datos.
 
     python -m tests.test_flujo
+    pytest -m integracion --no-cov        (misma prueba desde pytest; necesita la base encendida)
 
 Recorre:
   A. Equipo 1: 1ª visita no conforme -> 2ª visita con todo corregido -> certificado.
@@ -16,6 +17,7 @@ import os
 import uuid
 from datetime import date, datetime, timedelta, timezone
 
+import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
 
@@ -44,7 +46,7 @@ def crear_interno(rol: str) -> str:
     db = SessionLocal()
     correo = f"{rol.lower()}_{SUF}@servilift-prueba.co"
     db.add(Usuario(id_rol=db.query(Rol).filter(Rol.codigo == rol).one().id_rol, nombre_completo=f"{rol.title()} Prueba",
-                   correo=correo, contrasena_hash=hash_password(CLAVE)))
+                   correo=correo, contrasena_encriptada=hash_password(CLAVE)))
     db.commit()
     db.close()
     return correo
@@ -53,6 +55,11 @@ def crear_interno(rol: str) -> str:
 def login(correo):
     t = ok(c.post("/auth/login", json={"correo": correo, "contrasena": CLAVE}))
     return {"Authorization": f"Bearer {t['access_token']}"}
+
+
+def en_inicio(headers, enlace):
+    """¿La notificación más reciente con ese enlace sigue pendiente (aparece en el inicio)?"""
+    return next(n["vigente"] for n in ok(c.get("/notificaciones", headers=headers)) if n["enlace"] == enlace)
 
 
 def png():
@@ -247,10 +254,13 @@ def main():
     assert iid == iid_prev  # el mismo servicio no abre una segunda "primera visita"
 
     # 5. Director técnico: devuelve, el inspector corrige, aprueba (informe de 1ª visita NO CONFORME)
+    assert en_inicio(H["DIRECTOR_TECNICO"], f"/informes/{inf1['id_informe']}") is True  # por revisar
     ok(c.post(f"/informes/{inf1['id_informe']}/devolver", headers=H["DIRECTOR_TECNICO"], json={"observaciones": "Falta foto del foso"}))
     assert ok(c.get(f"/inspecciones/{iid}", headers=H["INSPECTOR"]))["estado"] == "DEVUELTA"
+    assert en_inicio(H["INSPECTOR"], f"/inspecciones/{iid}") is True  # el devuelto aparece en su inicio
     subir_foto(H["INSPECTOR"], iid, "foso.jpg")
     ok(c.post(f"/inspecciones/{iid}/finalizar", headers=H["INSPECTOR"]))
+    assert en_inicio(H["INSPECTOR"], f"/inspecciones/{iid}") is False  # ya pasó al director: sale del inicio
     assert c.get(f"/informes/{inf1['id_informe']}", headers=H["CLIENTE"]).status_code == 404  # aún no visible
     vp = ok(c.get(f"/informes/{inf1['id_informe']}/vista-previa", headers=H["DIRECTOR_TECNICO"]))
     assert c.get(vp["url"]).content[:4] == b"%PDF"
@@ -260,6 +270,7 @@ def main():
                   json={"firma_base64": png(), "concepto": "CONFORME"}).status_code == 409  # tiene no conformidades
     apr1 = ok(c.post(f"/informes/{inf1['id_informe']}/aprobar", headers=H["DIRECTOR_TECNICO"], json={"firma_base64": png()}))
     assert apr1["estado"] == "APROBADO" and apr1["concepto"] == "NO_CONFORME" and apr1["numero_visita"] == 1, apr1
+    assert en_inicio(H["DIRECTOR_TECNICO"], f"/informes/{inf1['id_informe']}") is False  # ya revisado
     assert (apr1["total_leves"], apr1["total_graves"], apr1["total_muy_graves"], apr1["total_no_aplica"]) == (1, 1, 1, 35), apr1
     assert ok(c.get(f"/informes/{inf1['id_informe']}/pdf", headers=H["CLIENTE"])).content[:4] == b"%PDF"
 
@@ -336,6 +347,11 @@ def main():
     print(f"OK flujo completo {num}: informes {inf1['numero_informe']} y {inf2['numero_informe']}, "
           f"certificado {cert['numero_certificado']}; {inf2b['numero_informe']} cerrado no conforme -> "
           f"cotización nueva {cot2['numero_cotizacion']}")
+
+
+@pytest.mark.integracion
+def test_flujo_completo_de_cotizacion_a_certificado():
+    main()
 
 
 if __name__ == "__main__":

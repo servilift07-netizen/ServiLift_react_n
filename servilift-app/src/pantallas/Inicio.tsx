@@ -8,6 +8,7 @@ import { AvisoCache, Contenido, EstadoCarga, EstadoChip, Icon, Tarjeta, Titulo }
 import { useDialogos } from '@/componentes/Dialogos';
 import { Barras, Columnas, DatoGrafica, Dona } from '@/componentes/Graficas';
 import { useCarga } from '@/hooks/useCarga';
+import { paraInicio } from '@/logica/notificaciones';
 import { useSesion } from '@/sesion/SesionContext';
 import { aclarar, Colores, colorNombre, fechaHora } from '@/tema';
 import { abrirNotificacion } from './abrirNotificacion';
@@ -90,7 +91,8 @@ function LoMasReciente() {
   const { rol } = useSesion();
   const d = useDialogos();
   const c = useCarga<any[]>(() => Api.get('/notificaciones'), [], { intervalo: 30000 });
-  const lista = (c.datos ?? []).slice(0, 4);
+  // Solo lo pendiente: lo ya atendido (p. ej. inspección finalizada) queda en Notificaciones, no en el inicio
+  const { visibles: lista, hayMas } = paraInicio(c.datos ?? []);
   if (!c.datos) return null;
   const abrir = async (n: any) => {
     await abrirNotificacion(n, rol, d);
@@ -102,10 +104,10 @@ function LoMasReciente() {
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
         <Icon nombre="bell-ring-outline" color={Colores.acento} />
         <Text style={{ fontWeight: '700', fontSize: 16, flex: 1 }}>Lo más reciente</Text>
-        {c.datos.length > 4 && <Button compact onPress={() => router.push('/notificaciones')}>Ver todo</Button>}
+        {(hayMas || c.datos.length > lista.length) && <Button compact onPress={() => router.push('/notificaciones')}>Ver todo</Button>}
       </View>
       {!primera ? (
-        <Tarjeta><Text style={{ color: Colores.gris }}>No tiene novedades por ahora.</Text></Tarjeta>
+        <Tarjeta><Text style={{ color: Colores.gris }}>No tiene pendientes por ahora.</Text></Tarjeta>
       ) : (
         <>
           <Tarjeta onPress={() => abrir(primera)} style={{ borderLeftWidth: 5, borderLeftColor: Colores.acento,

@@ -27,7 +27,7 @@ app/
 ├── routes/         auth, usuarios, clientes (búsqueda), cotizaciones, programacion, inspecciones,
 │                   informes (uno por visita), certificados, seguimiento, catalogos (normas), dashboard
 └── services/       flujo (estados), checklist (por norma), archivos (fotos, firmas por trazos), pdf
-alembic/            migraciones (0001_v2 base, 0002 reglas de no aplica, 0003 foso mínimo, 0004 parámetros de recorrido)
+alembic/            migraciones (0001_v2 base, 0002 reglas de no aplica, 0003 foso mínimo, 0004 parámetros de recorrido, 0005 contraseñas en BLOB)
 tests/test_flujo.py prueba de punta a punta
 ```
 

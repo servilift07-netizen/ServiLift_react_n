@@ -60,7 +60,7 @@ def crear_usuario(db: Session, datos: UsuarioIn) -> Usuario:
     u = Usuario(
         id_rol=rol.id_rol, id_cliente=datos.id_cliente if rol.codigo == CLIENTE else None,
         nombre_completo=datos.nombre_completo, correo=datos.correo.lower(),
-        contrasena_hash=hash_password(datos.contrasena), tipo_documento=datos.tipo_documento,
+        contrasena_encriptada=hash_password(datos.contrasena), tipo_documento=datos.tipo_documento,
         documento=datos.documento, telefono=datos.telefono, cargo=datos.cargo,
         matricula_profesional=datos.matricula_profesional,
     )
@@ -103,7 +103,7 @@ def actualizar(id_usuario: int, datos: UsuarioUpdate, db: Session = Depends(get_
         nueva = cambios.pop("contrasena") or ""
         if len(nueva) < MIN_CONTRASENA:
             raise HTTPException(400, f"La contraseña debe tener al menos {MIN_CONTRASENA} caracteres")
-        u.contrasena_hash = hash_password(nueva)
+        u.contrasena_encriptada = hash_password(nueva)
     for k, v in cambios.items():
         setattr(u, k, v)
     db.commit()

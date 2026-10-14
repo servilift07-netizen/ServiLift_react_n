@@ -4,7 +4,7 @@
 
 from sqlalchemy import (
     Column, Integer, BigInteger, SmallInteger, String, Text, Date, DateTime, Time,
-    Numeric, Boolean, ForeignKey, func,
+    Numeric, Boolean, ForeignKey, LargeBinary, func,
 )
 from sqlalchemy.orm import relationship
 
@@ -30,7 +30,7 @@ class Usuario(Base):
     id_cliente = Column(Integer, ForeignKey("cliente.id_cliente"))
     nombre_completo = Column(String(150), nullable=False)
     correo = Column(String(120), unique=True, nullable=False)
-    contrasena_hash = Column(String(255), nullable=False)
+    contrasena_encriptada = Column(LargeBinary, nullable=False)  # sal + PBKDF2-SHA256 (ver security.py)
     tipo_documento = Column(String(5))
     documento = Column(String(30))
     telefono = Column(String(30))

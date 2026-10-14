@@ -37,7 +37,7 @@ export default function Notificaciones() {
                 style={{ paddingHorizontal: 0 }}
                 title={n.titulo}
                 titleStyle={{ fontWeight: n.leida ? '400' : '700' }}
-                description={`${n.mensaje}\n${fechaHora(n.fecha_creacion)}`}
+                description={`${n.mensaje}\n${fechaHora(n.fecha_creacion)}${n.vigente === false ? ' · Ya atendida' : ''}`}
                 descriptionNumberOfLines={5}
                 left={() => <Icon nombre={n.leida ? 'bell-outline' : 'bell-ring'} color={n.leida ? Colores.gris : Colores.acento} />}
                 right={() => (n.enlace ? <Icon nombre="chevron-right" /> : null)}

@@ -40,11 +40,12 @@ export default function Clientes() {
           mode="outlined"
           dense
           label={modo === 'clientes' ? 'Buscar por nombre, NIT, contacto o ciudad' : 'Buscar edificio por nombre, dirección, barrio o cliente'}
+          accessibilityLabel={modo === 'clientes' ? 'Buscar clientes' : 'Buscar edificios'}
           value={texto}
           onChangeText={setTexto}
           onSubmitEditing={() => setBuscar(texto.trim())}
           left={<TextInput.Icon tabIndex={-1} icon="magnify" />}
-          right={<TextInput.Icon tabIndex={-1} icon="arrow-right" onPress={() => setBuscar(texto.trim())} />}
+          right={<TextInput.Icon tabIndex={-1} icon="arrow-right" onPress={() => setBuscar(texto.trim())} accessibilityLabel="Buscar" />}
         />
         {!c.datos ? <EstadoCarga error={c.error} onReintentar={c.recargar} />
           : !c.datos.length ? <Vacio texto={buscar ? 'Sin resultados para la búsqueda' : 'No hay registros'} />

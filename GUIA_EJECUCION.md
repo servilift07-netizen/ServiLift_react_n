@@ -2,8 +2,18 @@
 
 Carpeta del proyecto: `C:\Users\PC\Documents\Sena\LiftSafe\servi lift react`
 
-Requisitos: XAMPP (MariaDB), Python 3.13, Node.js 20+ y, para el celular, la app **Expo Go**
-(Play Store / App Store) o Android Studio.
+Requisitos: Git, XAMPP (MariaDB), Python 3.13, Node.js 22+ y, para el celular, la app **Expo Go**
+(Play Store / App Store) o Android Studio. Las pruebas E2E usan además pnpm (el instalador lo agrega).
+
+## 0. En un PC nuevo: instalación automática
+```
+git clone -b version-2.1 https://github.com/servilift07-netizen/ServiLift_react_n.git "servi lift react"
+cd "servi lift react"
+powershell -ExecutionPolicy Bypass -File .\instalar.ps1 -ConBaseDeDatos
+```
+El script crea el entorno virtual del backend, instala las dependencias de la app y de Playwright, copia los
+`.env` de ejemplo y (con `-ConBaseDeDatos` y MySQL encendido en XAMPP) crea `servilift_db` y la base de
+pruebas `servilift_v2_prueba`. No modifica nada que ya exista. Después siga en el paso 2 (cada vez que vaya a trabajar).
 
 ## 1. Base de datos
 1. Abra el **Panel de control de XAMPP** y pulse **Start** en **MySQL**.
@@ -77,11 +87,19 @@ Abra la inspección con señal, luego apague el Wi‑Fi/datos del celular (o det
 califique ítems, tome fotos y firme. Arriba verá la nube con el número de cambios pendientes y en
 cada ítem "Guardado en el teléfono". Al volver la señal se envían solos (menú *Sincronización* muestra el detalle).
 
-## 8. Pruebas automáticas del backend
-Contra una base recién creada con `01_schema.sql` y `02_seed.sql`:
-```
-venv\Scripts\python -m tests.test_flujo
-```
+## 8. Pruebas automáticas
+| Qué | Dónde | Comando | Necesita |
+|---|---|---|---|
+| Unitarias de la app + cobertura | `servilift-app` | `npm test` | Nada (ni backend ni base) |
+| Unitarias del backend + cobertura | `servilift-backend` | `venv\Scripts\python -m pytest` | Nada (ni base ni red) |
+| Integración (flujo completo por la API) | `servilift-backend` | `$env:DB_NAME="servilift_v2_prueba"` (PowerShell) y luego `venv\Scripts\python -m pytest -m integracion --no-cov` | MySQL encendido |
+| E2E con Playwright | `e2e` | `pnpm test` (`pnpm test:ui` paso a paso, `pnpm report` reporte) | MySQL encendido |
+
+- Los comandos de unitarias fallan si la cobertura baja del umbral (`vitest.config.mts` y `pyproject.toml`).
+- Las E2E levantan solas el backend en el puerto **8010** y la app en el **8091** contra `servilift_v2_prueba`:
+  no chocan con el backend (8000) ni con Expo (8081) del día a día y nunca tocan `servilift_db`.
+- GitHub Actions corre las unitarias en cada pull request (`.github/workflows/tests.yml`).
+- Matriz de rotación, cobertura semanal y mutantes: `docs/matriz-rotacion.md`.
 
 ## Problemas comunes
 | Síntoma | Solución |
@@ -89,3 +107,5 @@ venv\Scripts\python -m tests.test_flujo
 | Login: "Sin conexión con el servidor" | El backend no está encendido o `EXPO_PUBLIC_API_URL` es incorrecta |
 | Cambié `.env` de la app y no toma la IP | Detenga Expo y vuelva a ejecutar `npx expo start --clear` |
 | Error de conexión a la base | MySQL no está encendido en XAMPP |
+| `instalar.ps1` no se puede ejecutar | Use `powershell -ExecutionPolicy Bypass -File .\instalar.ps1` |
+| E2E: "port 8010 is already used" | Hay otro backend de pruebas abierto: ciérrelo o use `$env:API_PORT=8011; pnpm test` |

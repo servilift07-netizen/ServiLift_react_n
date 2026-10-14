@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 
 import { Api } from '@/api/cliente';
 import { useDialogos } from '@/componentes/Dialogos';
-import { Rol } from '@/sesion/SesionContext';
+import { destinoNotificacion } from '@/logica/notificaciones';
 
 type Dialogos = ReturnType<typeof useDialogos>;
 
@@ -16,27 +16,7 @@ export async function abrirNotificacion(n: { id_notificacion: number; enlace?: s
       // se marcará la próxima vez
     }
   }
-  const partes = String(n.enlace ?? '').split('/').filter(Boolean);
-  if (!partes.length) return;
-  const id = partes[1] && /^\d+$/.test(partes[1]) ? Number(partes[1]) : null;
-  switch (partes[0]) {
-    case 'cotizaciones':
-      if (id) router.push(`/cotizaciones/${id}`);
-      break;
-    case 'inspecciones':
-      router.push(id ? `/inspeccion/${id}` : '/agenda');
-      break;
-    case 'informes':
-      if (!id) router.push('/informes');
-      else if (rol === Rol.director || rol === Rol.admin) router.push(`/informes/revision/${id}`);
-      else await d.ejecutar(() => Api.abrirPdf(`/informes/${id}/enlace-pdf`));
-      break;
-    case 'programacion':
-      router.push('/programacion');
-      break;
-    case 'certificados':
-      if (id) await d.ejecutar(() => Api.abrirPdf(`/certificados/${id}/enlace-pdf`));
-      else router.push('/certificados');
-      break;
-  }
+  const destino = destinoNotificacion(n.enlace, rol);
+  if (destino?.tipo === 'ruta') router.push(destino.ruta as any);
+  else if (destino?.tipo === 'pdf') await d.ejecutar(() => Api.abrirPdf(destino.url));
 }
