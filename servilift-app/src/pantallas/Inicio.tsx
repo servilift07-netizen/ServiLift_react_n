@@ -7,6 +7,7 @@ import { Api } from '@/api/cliente';
 import { AvisoCache, Contenido, EstadoCarga, EstadoChip, Icon, Tarjeta, Titulo } from '@/componentes/Comunes';
 import { useDialogos } from '@/componentes/Dialogos';
 import { Barras, Columnas, DatoGrafica, Dona } from '@/componentes/Graficas';
+import { AVISOS_MS } from '@/config';
 import { useCarga } from '@/hooks/useCarga';
 import { paraInicio } from '@/logica/notificaciones';
 import { useSesion } from '@/sesion/SesionContext';
@@ -90,7 +91,7 @@ function hace(iso?: string | null): string {
 function LoMasReciente() {
   const { rol } = useSesion();
   const d = useDialogos();
-  const c = useCarga<any[]>(() => Api.get('/notificaciones'), [], { intervalo: 30000 });
+  const c = useCarga<any[]>(() => Api.get('/notificaciones'), [], { intervalo: AVISOS_MS });
   // Solo lo pendiente: lo ya atendido (p. ej. inspección finalizada) queda en Notificaciones, no en el inicio
   const { visibles: lista, hayMas } = paraInicio(c.datos ?? []);
   if (!c.datos) return null;

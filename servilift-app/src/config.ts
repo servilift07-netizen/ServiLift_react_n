@@ -6,3 +6,6 @@ export const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:800
 
 // Cada cuánto se refrescan solas las listas mientras la pantalla está abierta
 export const REFRESCO_MS = 20000;
+
+// Cada cuánto se revisan las notificaciones (campana e inicio); además se revisan al volver a la app o ventana
+export const AVISOS_MS = 10000;
