@@ -379,7 +379,7 @@ function datos() {
     ['0005_contrasena_blob', 'Contraseñas en BLOB con PBKDF2-SHA256.'],
   ], [3200, 6160], 'Una base creada antes se pone al día con `uv run alembic upgrade head`.'));
   out.push(H2('11.8. Datos por rol'));
-  out.push(P('Así como los casos de uso, el acceso a los datos se presenta por rol. Cada figura agrupa por área las tablas que usa el rol: en verde las que crea o modifica y en azul las que solo consulta, con las letras C (crear), R (consultar), U (actualizar) y D (eliminar). La matriz CRUD al final de la sección resume todos los roles.'));
+  out.push(P('Así como los casos de uso, el acceso a los datos se presenta por rol. Cada figura agrupa por área las tablas que usa el rol: en verde las que crea o modifica y en azul las que solo consulta, con las letras C (crear), R (consultar), U (actualizar) y D (eliminar). En ServiLift eliminar casi siempre es lógico: el registro se inactiva, se anula o se cancela y queda en la base con su motivo, porque la trazabilidad que pide la ISO/IEC 17020 no permite borrar el historial. Solo las fotos de la inspección se borran del todo. Por eso las tablas de inspección, informes, historial de estados y consecutivos no tienen D para ningún rol. La matriz CRUD al final de la sección resume todos los roles.'));
   const archRol = { Administrador: 'datos-administrador', Asesor: 'datos-asesor', Cliente: 'datos-cliente', 'Programación': 'datos-programacion', Inspector: 'datos-inspector', 'Director técnico': 'datos-director', Certificados: 'datos-certificados' };
   k = 1;
   ROLES_SESION.forEach((r) => {
@@ -387,7 +387,7 @@ function datos() {
     const a = D.acceso[r];
     const esc = Object.values(a).filter((p) => /[CUD]/.test(p)).length;
     out.push(P(r === 'Administrador'
-      ? 'El administrador puede crear, consultar y modificar cualquier tabla, porque el control de permisos siempre lo deja pasar; en la práctica configura usuarios, normas, parámetros e instrumentos.'
+      ? 'El administrador puede crear, consultar y modificar cualquier tabla, porque el control de permisos siempre lo deja pasar, y puede eliminar donde el sistema lo permite: inactiva usuarios y normas, y además puede hacer todo lo que eliminan los demás roles (clientes, edificios, equipos, cotizaciones, visitas, fotos y certificados). En la práctica configura usuarios, normas, parámetros e instrumentos.'
       : `El rol ${r} usa ${Object.keys(a).length} tablas: escribe en ${esc} y solo consulta ${Object.keys(a).length - esc}.`));
     out.push(...figura(archRol[r], `Tablas que usa el rol ${r}`, null, 7.8));
   });
@@ -399,7 +399,7 @@ function datos() {
   })]);
   out.push(...M.tituloTabla('Matriz CRUD de roles y tablas'));
   out.push(tablaRejilla(['Tabla', ...corto], filas, [2780, 940, 940, 940, 940, 940, 940, 940], { centro: [1, 2, 3, 4, 5, 6, 7], tam: 17 }));
-  out.push(notaP('C crear, R consultar, U actualizar, D eliminar. Verde: el rol escribe; azul: solo consulta. Los permisos se derivan de los endpoints que cada rol puede usar.'));
+  out.push(notaP('C crear, R consultar, U actualizar, D eliminar (lógico: inactivar, anular o cancelar; físico solo en inspeccion_foto). Verde: el rol escribe; azul: solo consulta. Los permisos se derivan de los endpoints que cada rol puede usar.'));
   return out;
 }
 

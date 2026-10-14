@@ -155,10 +155,8 @@ def diccionario():
 
 def acceso():
     res = {}
-    for rol, a in er.ACCESO.items():
-        if "*" in a:
-            a = {t: "CRU" for t in er.TABLAS}
-        res[rol] = {t: p for t, p in a.items() if t != "alembic_version"}
+    for rol in er.ACCESO:
+        res[rol] = er.acceso_rol(rol)
     return res
 
 

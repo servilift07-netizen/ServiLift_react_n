@@ -259,12 +259,12 @@ def diagrama_general(ruta):
 # ---------------- datos por rol ----------------
 ACCESO = {
     "Administrador": {"*": "CRU"},
-    "Asesor": {"cliente": "CRU", "edificio": "CRU", "equipo": "CRU", "equipo_variante": "CRU",
-               "cotizacion": "CRU", "cotizacion_equipo": "CRU", "historial_estado": "C", "consecutivo": "U",
+    "Asesor": {"cliente": "CRUD", "edificio": "CRUD", "equipo": "CRUD", "equipo_variante": "CRU",
+               "cotizacion": "CRUD", "cotizacion_equipo": "CRUD", "historial_estado": "C", "consecutivo": "U",
                "norma": "R", "informe": "R", "certificado": "R", "notificacion": "RU"},
     "Cliente": {"cotizacion": "RU", "cotizacion_equipo": "RU", "historial_estado": "CR", "edificio": "R",
                 "equipo": "R", "informe": "R", "certificado": "R", "notificacion": "RU"},
-    "Programación": {"programacion": "CRU", "programacion_equipo": "CRU", "cotizacion_equipo": "RU",
+    "Programación": {"programacion": "CRUD", "programacion_equipo": "CRU", "cotizacion_equipo": "RU",
                      "historial_estado": "C", "cotizacion": "R", "usuario": "R", "edificio": "R",
                      "notificacion": "RU"},
     "Inspector": {"inspeccion": "CRU", "inspeccion_variante": "CRU", "inspeccion_resultado": "CRU",
@@ -276,7 +276,7 @@ ACCESO = {
     "Director técnico": {"informe": "RU", "inspeccion": "RU", "inspeccion_resultado": "RU",
                          "inspeccion_foto": "R", "inspeccion_firma": "R", "cotizacion_equipo": "RU",
                          "historial_estado": "C", "usuario": "R", "norma": "R", "notificacion": "RU"},
-    "Certificados": {"certificado": "CRU", "informe": "RU", "cotizacion_equipo": "RU", "historial_estado": "C",
+    "Certificados": {"certificado": "CRUD", "informe": "RU", "cotizacion_equipo": "RU", "historial_estado": "C",
                      "consecutivo": "U", "notificacion": "RU"},
 }
 # Todos los roles con sesión leen su propio usuario y su rol al iniciar sesión.
@@ -286,16 +286,27 @@ for _r in ACCESO.values():
         _r.setdefault("rol", "R")
 
 
+# D = eliminar. En ServiLift casi siempre es lógico (inactivar, anular o cancelar) para conservar la
+# trazabilidad; solo las fotos se borran del todo. El administrador además inactiva usuarios y normas.
+D_ADMIN = {"usuario", "norma"}
+
+
+def acceso_rol(rol):
+    """Permisos del rol por tabla; el administrador pasa todos los controles."""
+    a = ACCESO[rol]
+    if "*" not in a:
+        return {t: p for t, p in a.items() if t != "alembic_version"}
+    con_d = D_ADMIN | {t for r in ACCESO.values() for t, p in r.items() if "D" in p}
+    return {t: "CRUD" if t in con_d else "CRU" for t in TABLAS if t != "alembic_version"}
+
+
 CODIGO_ROL = {"Administrador": "ADMIN", "Asesor": "ASESOR", "Cliente": "CLIENTE", "Programación": "PROGRAMACION",
               "Inspector": "INSPECTOR", "Director técnico": "DIRECTOR_TECNICO", "Certificados": "CERTIFICADOS"}
 
 
 def diagrama_datos_rol(rol, ruta):
     """Tablas que toca un rol, agrupadas por área, con sus permisos C R U D."""
-    acceso = ACCESO[rol]
-    if "*" in acceso:
-        acceso = {t: "CRUD" if t in ("inspeccion_foto",) else "CRU" for t in TABLAS}
-    acceso = {t: p for t, p in acceso.items() if t != "alembic_version"}
+    acceso = acceso_rol(rol)
     grupos = [(a, [t for t in d["tablas"] if t in acceso]) for a, d in AREAS.items()]
     grupos = [(a, ts) for a, ts in grupos if ts]
     ncol = 3 if sum(len(ts) for _, ts in grupos) > 8 else 2
