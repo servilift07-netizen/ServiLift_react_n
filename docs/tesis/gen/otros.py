@@ -328,7 +328,7 @@ def piramide(ruta):
     w, h = 1200, 600
     lz = Lienzo(w, h, "Niveles de prueba de ServiLift", "De la base (rápidas, muchas) a la punta (lentas, pocas)")
     niveles = [
-        ("E2E · Playwright", "5 flujos en la app web", "rosa", 340),
+        ("E2E · Playwright", "6 pruebas + flujo completo por rol", "rosa", 340),
         ("Integración · pytest -m integracion", "Flujo completo por la API contra MariaDB", "ambar", 540),
         ("Unitarias backend · pytest", "103 pruebas · cobertura 44,7 %", "verde", 740),
         ("Unitarias app · Vitest", "110 pruebas · cobertura de líneas 42,4 %", "azul", 940),

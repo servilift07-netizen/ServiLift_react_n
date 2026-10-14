@@ -47,14 +47,14 @@ function indice(lista, paginas) {
 function resumen() {
   return [
     H1('Resumen'),
-    P('El presente documento describe ServiLift, un sistema de información para gestionar de principio a fin el servicio de inspección técnica de ascensores en organismos de certificación de transporte vertical que trabajan con la NTC 5926-1:2012, desde la cotización hasta la entrega del certificado con código QR, conforme a la NTC 5926-1:2012.'),
-    P('La solución está formada por una aplicación multiplataforma en React Native con Expo, que corre en el celular del inspector y en el navegador del personal de oficina y del cliente; una API REST en FastAPI (Python 3.13) que concentra las reglas del negocio y los permisos de siete roles; y una base de datos MariaDB de 31 tablas y 2 vistas. El inspector trabaja sin señal: cada cambio se guarda primero en el teléfono y se sincroniza solo cuando vuelve la conexión, sin duplicar fotos ni firmas.'),
+    P('El presente documento describe ServiLift, un sistema de información para gestionar de principio a fin el servicio de inspección técnica de ascensores en organismos de certificación de transporte vertical que trabajan con la NTC 5926-1:2012, desde la cotización hasta la entrega del certificado con código QR, conforme a la NTC 5926-1:2012 (Instituto Colombiano de Normas Técnicas y Certificación [ICONTEC], 2012).'),
+    P('La solución está formada por una aplicación multiplataforma en React Native con Expo (Expo, 2026), que corre en el celular del inspector y en el navegador del personal de oficina y del cliente; una API REST en FastAPI (FastAPI, 2026) sobre Python 3.13 que concentra las reglas del negocio y los permisos de siete roles; y una base de datos MariaDB (MariaDB Foundation, 2026) de 31 tablas y 2 vistas. El inspector trabaja sin señal: cada cambio se guarda primero en el teléfono y se sincroniza solo cuando vuelve la conexión, sin duplicar fotos ni firmas.'),
     P('El documento recoge el análisis del negocio, el levantamiento de requisitos a partir del análisis del proceso y la norma, los 27 casos de uso organizados por rol con su especificación, la arquitectura, el modelo de datos con su diccionario completo generado desde el esquema real, la API, la instalación con Docker y uv, y la estrategia de pruebas automatizadas (Vitest, pytest, Playwright, mutación manual e integración continua en GitHub Actions).'),
     new Paragraph({ spacing: { line: 480 }, indent: { firstLine: 720 }, children: [new TextRun({ text: 'Palabras clave: ', italics: true }), new TextRun('inspección de ascensores, NTC 5926-1, trabajo sin conexión, React Native, FastAPI, MariaDB, casos de uso.')] }),
     H1('Introducción'),
     P('La inspección técnica de ascensores es un proceso regulado que exige rigurosidad, trazabilidad y cumplimiento normativo para garantizar la seguridad de los usuarios. En los organismos de inspección este proceso se suele llevar con planillas impresas, archivos de Excel independientes y fotografías sueltas tomadas con el celular, lo que dificulta el control de la información, alarga la entrega del informe y limita la calidad y la estandarización del resultado.'),
     P('ServiLift es un proyecto propio e independiente, dirigido a cualquier organismo de certificación de transporte vertical que aplique la NTC 5926-1. Este documento presenta el sistema ya implementado y probado, que cubre la cotización, la programación de visitas, la inspección en campo con o sin señal, la revisión y firma del director técnico, la segunda visita de cierre de hallazgos, la emisión del certificado y su verificación pública por QR.'),
-    P('Primero se describe la línea de negocio, el problema y los objetivos; luego los requisitos y los casos de uso, que ahora se presentan **por rol** con diagramas propios; después la arquitectura y el modelo de datos, también desglosado **por área y por rol**; y al final la instalación, las pruebas y las conclusiones.'),
+    P('Primero se describe la línea de negocio, el problema y los objetivos; luego los requisitos y los casos de uso, que ahora se presentan **por rol** con diagramas propios; después la arquitectura y el modelo de datos, también desglosado **por área y por rol**; y al final la instalación, las pruebas y las conclusiones. El documento sigue las normas de la American Psychological Association [APA] (2020) para citas, tablas y figuras.'),
   ];
 }
 
@@ -78,10 +78,10 @@ function negocio() {
       ['Público', 'Verifica la autenticidad del certificado escaneando el QR', 'Sin sesión'],
     ], [2400, 4560, 2400], 'Cada actor del negocio corresponde a un rol implementado en ServiLift.'),
     H2('1.3. Marco normativo legal y técnico'),
+    P('La NTC 5926-1 fija la revisión técnico-mecánica de los ascensores y su lista de chequeo (ICONTEC, 2012); la ISO/IEC 17020 establece los requisitos de los organismos que realizan la inspección, entre ellos la imparcialidad y la trazabilidad de los registros (ISO, 2012). Además, el Estatuto del Consumidor protege a quien recibe el certificado (Congreso de la República de Colombia, 2011) y la Ley 1581 regula el tratamiento de los datos personales de clientes y usuarios (Congreso de la República de Colombia, 2012). La tabla siguiente relaciona cada norma con ServiLift.'),
     ...tablaAPA('Marco normativo relacionado con el proyecto', ['Norma o documento', 'Enfoque', 'Relación con ServiLift'], [
       ['NTC 5926-1:2012', 'Inspección técnica de ascensores en Colombia', 'Su lista de chequeo (169 ítems) es el checklist que califica el inspector; la tabla norma admite nuevas ediciones y las partes 2 y 3'],
       ['ISO/IEC 17020:2012', 'Requisitos para organismos de inspección', 'Trazabilidad: historial de estados, firmas, huella SHA-256 del PDF y consecutivos únicos'],
-      ['Resolución 0675 de 2013', 'Inspección obligatoria de ascensores', 'Motiva el ciclo de inspección periódica y el certificado con vencimiento'],
       ['Ley 1480 de 2011', 'Protección del consumidor', 'El certificado se verifica públicamente por QR (vigente, vencido o anulado)'],
       ['Ley 1581 de 2012', 'Protección de datos personales', 'Contraseñas cifradas, permisos por rol, el cliente solo ve su información y los archivos se sirven con enlace firmado'],
     ], [2200, 2800, 4360], 'Se listan las normas legales y técnicas que aplican al proceso de inspección y a la documentación digital.'),
@@ -94,7 +94,7 @@ function negocio() {
 
     H1('2. Descripción del caso y problema actual'),
     H2('2.1. Usuarios objetivo'),
-    P('ServiLift está dirigido a los organismos de certificación de transporte vertical en Colombia que evalúan el cumplimiento de la NTC 5926-1:2012, normalmente acreditados bajo la ISO/IEC 17020:2012, y que trabajan con un equipo de asesores comerciales, programadores de agenda, inspectores, directores técnicos y personal de certificados. No está atado a una empresa en particular: la norma, sus ítems y los datos de la empresa que aparecen en los informes se configuran como datos.'),
+    P('ServiLift está dirigido a los organismos de certificación de transporte vertical en Colombia que evalúan el cumplimiento de la NTC 5926-1:2012 (ICONTEC, 2012), normalmente acreditados bajo la ISO/IEC 17020:2012 (International Organization for Standardization [ISO], 2012), y que trabajan con un equipo de asesores comerciales, programadores de agenda, inspectores, directores técnicos y personal de certificados. No está atado a una empresa en particular: la norma, sus ítems y los datos de la empresa que aparecen en los informes se configuran como datos.'),
     H2('2.2. Proceso operativo habitual sin un sistema'),
     P('En un organismo de certificación el servicio suele pasar por cuatro áreas. El **área comercial** recibe la solicitud, cotiza y envía la propuesta por correo. **Programación** acuerda la fecha con el cliente y la empresa de mantenimiento y envía el itinerario al inspector. El **inspector** ejecuta la inspección con la lista de chequeo de la NTC 5926-1, el registro de visita y el informe en hojas de Excel, con fotos sueltas del celular. La **dirección técnica** revisa el informe, autoriza el certificado y lo publica para el cliente.'),
     H2('2.3. Problemas identificados'),
@@ -185,7 +185,7 @@ function requisitos() {
     ...tablaAPA('Requisitos no funcionales y su implementación', ['Código', 'Requisito', 'Estado', 'Cómo se atiende'],
       TRAZA_NF.map(([c, n, e, d]) => [c, n, ESTADO[e], d]), [900, 2200, 1500, 4760]),
     ...tablaAPA('Restricciones', ['Código', 'Restricción', 'Estado', 'Observación'], [
-      ['R-001', 'Funcionamiento en zonas sin conectividad', 'Implementado', 'Ver CU-16 y la sección 9.6.'],
+      ['R-001', 'Funcionamiento en zonas sin conectividad', 'Implementado', 'Ver CU-16 y la sección 10.5.'],
       ['R-002', 'Cumplimiento de la normativa técnica y de datos', 'Implementado', 'NTC 5926-1, ISO 17020 y Ley 1581.'],
       ['R-003', 'Respaldo diario en la nube', 'No implementado', 'Recomendación de despliegue: copia programada del volumen de MariaDB y de storage/.'],
       ['R-004', 'Disponibilidad mínima de 99,9 %', 'Parcial', 'Depende de la infraestructura donde se despliegue.'],
@@ -291,6 +291,7 @@ function arquitectura() {
     P('ServiLift es un sistema **cliente-servidor de tres capas**: la app (presentación), la API REST (lógica de negocio) y la base de datos (persistencia). Dentro del backend se aplica una **arquitectura en capas**: rutas, seguridad, servicios de negocio y modelos ORM. La app sigue un enfoque **offline-first** para el inspector: la fuente inmediata de verdad es el teléfono y el servidor se actualiza cuando hay señal.'),
     ...figura('componentes', 'Arquitectura de componentes', null),
     H2('10.2. Tecnologías escogidas'),
+    P('La app se construyó con Expo y React Native para tener un solo código en Android, iOS y el navegador (Expo, 2026). La API usa FastAPI, que valida los datos y genera la documentación OpenAPI (FastAPI, 2026), con SQLAlchemy 2 como ORM (SQLAlchemy, 2026). La base de datos es MariaDB (MariaDB Foundation, 2026).'),
     ...tablaAPA('Tecnologías del sistema', ['Capa', 'Tecnología', 'Uso'], [
       ['App', 'React Native 0.86, Expo SDK 57, TypeScript, Expo Router, React Native Paper', 'Una sola app para Android, iOS y navegador'],
       ['Almacenamiento local', 'AsyncStorage, SecureStore, sessionStorage', 'Cola sin conexión, fotos pendientes y sesión'],
@@ -426,7 +427,7 @@ function instalacion() {
   const cmd = (t) => new Paragraph({ children: [new TextRun({ text: t, font: 'Consolas', size: 19 })], shading: { fill: 'F2F2F2', type: M.ShadingType.CLEAR, color: 'auto' }, spacing: { line: 260 }, indent: { left: 360 } });
   return [
     H1('13. Instalación y ejecución'),
-    P('Requisitos: Git, Docker Desktop (o MySQL de XAMPP), uv para Python 3.13 y Node.js 22. Los pasos completos están en `docs/instalacion.md` y en `GUIA_EJECUCION.md` del repositorio.'),
+    P('Requisitos: Git, Docker Desktop (o MySQL de XAMPP), uv para Python 3.13 y Node.js 22. Los pasos completos están en `GUIA_EJECUCION.md` del repositorio.'),
     H2('13.1. Base de datos con Docker'),
     cmd('docker compose up -d'),
     P('Crea `servilift_db` en el puerto 3307 y la base de pruebas `servilift_v2_prueba` con los scripts de `database/`.'),
@@ -441,8 +442,8 @@ function instalacion() {
     ...tablaAPA('Niveles de prueba', ['Nivel', 'Herramienta', 'Ubicación', 'Comando'], [
       ['Unitarias de la app', 'Vitest', 'servilift-app/tests (8 archivos, 110 pruebas)', 'npm test'],
       ['Unitarias del backend', 'pytest', 'servilift-backend/tests/unit (6 archivos, 103 pruebas)', 'uv run pytest'],
-      ['Integración', 'pytest -m integracion', 'servilift-backend/tests/integration', 'uv run pytest -m integracion'],
-      ['Extremo a extremo', 'Playwright (Chromium)', 'e2e/tests (5 flujos)', 'pnpm test'],
+      ['Integración', 'pytest -m integracion', 'servilift-backend/tests/test_flujo.py (cotización a certificado, 2ª visita, devolución y cierre no conforme)', 'uv run pytest -m integracion'],
+      ['Extremo a extremo', 'Playwright (Chromium)', 'e2e/tests (5 archivos, 6 pruebas: ingreso, búsqueda de clientes y cierre de sesión); el PR #5 agrega el flujo completo por rol (7 pruebas más)', 'pnpm test'],
     ], [2000, 2000, 3460, 1900]),
     H2('14.2. Cobertura'),
     ...tablaAPA('Umbral y cobertura medida', ['Proyecto', 'Umbral exigido', 'Cobertura medida'], [
@@ -463,7 +464,7 @@ function cierre() {
     H1('15. Conclusiones'),
     P('ServiLift cumple el objetivo general: el servicio de inspección de ascensores ya es un flujo digital de punta a punta, con trazabilidad en cada cambio de estado y con funcionamiento sin conexión para el inspector, que era la necesidad principal del trabajo en campo.'),
     P('El paso del diseño inicial a la implementación dejó un modelo de datos más completo (31 tablas frente a las 12 entidades del primer modelo), porque el trabajo real exigió separar el servicio por equipo, guardar la norma como dato, registrar el historial de estados y manejar dos visitas por servicio. Presentar los casos de uso y los datos por rol ayuda a validar con cada área que el sistema hace lo que esa área necesita y nada más.'),
-    P('Quedan como trabajo futuro la recuperación de contraseña por correo, el respaldo automático programado, los reportes exportables y la integración con sistemas contables, señalados en la trazabilidad de requisitos como parciales o pendientes.'),
+    P('Quedan como trabajo futuro la pantalla para registrar instrumentos de medición (hoy solo se registran por la API), la recuperación de contraseña por correo, el respaldo automático programado, los reportes exportables y la integración con sistemas contables, señalados en la trazabilidad de requisitos como parciales o pendientes.'),
     H1('Referencias'),
     ...[
       'American Psychological Association. (2020). Publication manual of the American Psychological Association (7.ª ed.).',

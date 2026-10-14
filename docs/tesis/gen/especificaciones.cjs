@@ -29,7 +29,7 @@ module.exports = {
   },
   'CU-02': {
     hu: 'Como administrador quiero registrar usuarios y asignarles un rol para que cada persona trabaje solo en lo que le corresponde.',
-    desc: 'Permite al administrador crear, editar, activar, inactivar o bloquear usuarios internos, y crear el acceso al portal para los usuarios de un cliente.',
+    desc: 'Permite al administrador crear, editar, activar o inactivar usuarios internos, y crear los usuarios del portal de un cliente.',
     actores: 'Administrador (principal).',
     pre: ['El administrador inició sesión.', 'Para un usuario del portal, el cliente ya existe.'],
     normal: [
@@ -40,8 +40,8 @@ module.exports = {
       ['', 'Muestra el usuario en la lista.'],
     ],
     alt: [
-      ['2.1', 'Desde la ficha de un cliente elige Crear acceso al portal.', 'Crea un usuario con rol CLIENTE ligado a ese cliente (POST /clientes/{id}/usuarios).'],
-      ['5.1', 'Edita un usuario existente.', 'Permite cambiar datos, cargo, rol, estado (ACTIVO, INACTIVO, BLOQUEADO) o contraseña.'],
+      ['2.1', 'Desde la ficha de un cliente pulsa Crear usuario.', 'Crea un usuario con rol CLIENTE ligado a ese cliente (POST /clientes/{id}/usuarios).'],
+      ['5.1', 'Edita un usuario existente.', 'Permite cambiar datos, cargo, rol, estado (Activo o Inactivo) o contraseña.'],
     ],
     exc: [
       ['E1', 'Usa un correo ya registrado.', 'Responde 409 «Ya existe un usuario con ese correo».'],
@@ -93,12 +93,12 @@ module.exports = {
   },
   'CU-05': {
     hu: 'Como administrador quiero registrar los instrumentos de medición con su calibración para que el inspector declare con qué midió.',
-    desc: 'Permite registrar instrumentos de medición (código, tipo, marca, serial, fechas de calibración) y asignarlos a un inspector. El inspector los elige luego en cada inspección.',
+    desc: 'Permite registrar instrumentos de medición (código, tipo, marca, serial, fechas de calibración) y asignarlos a un inspector. El inspector los elige luego en cada inspección. Por ahora se registran solo por la API (POST /instrumentos, por ejemplo desde la documentación Swagger); la app todavía no tiene una pantalla para hacerlo.',
     actores: 'Administrador (principal); inspector (los consulta).',
     pre: ['El administrador inició sesión.'],
     normal: [
-      ['Abre Administración > Instrumentos.', 'Lista los instrumentos con su estado y vencimiento de calibración.'],
-      ['Registra un instrumento nuevo y, si aplica, el inspector responsable.', 'Valida que el código no exista y lo guarda.'],
+      ['Abre la documentación de la API (/docs) e inicia sesión con su token.', 'Muestra los servicios disponibles.'],
+      ['Envía POST /instrumentos con los datos y, si aplica, el inspector responsable.', 'Valida que el código no exista y lo guarda.'],
     ],
     alt: [['2.1', 'No asigna inspector.', 'El instrumento queda disponible para cualquier inspector.']],
     exc: [['E1', 'Usa un código repetido.', 'Responde 409 «Ya existe un instrumento con ese código».']],
@@ -118,7 +118,7 @@ module.exports = {
       ['Registra los equipos del edificio.', 'Valida que la identificación del equipo no se repita en el edificio y los guarda.'],
     ],
     alt: [
-      ['4.1', 'Pulsa Generar equipos.', 'Crea «Ascensor 1..N» según el número de equipos del edificio.'],
+      ['3.1', 'Al guardar el edificio confirma «¿Crear N ascensores?».', 'Crea «Ascensor 1..N» según el número de equipos del edificio.'],
       ['4.2', 'Edita los datos técnicos de un equipo.', 'Actualiza el equipo (PUT /equipos/{id}).'],
     ],
     exc: [
@@ -131,14 +131,14 @@ module.exports = {
   },
   'CU-07': {
     hu: 'Como asesor quiero crear una cotización con los equipos de un edificio y enviarla al cliente para que la apruebe en el portal.',
-    desc: 'Permite crear la cotización de un edificio, elegir equipos, tipo de servicio, norma y valor de cada uno, y enviarla al cliente. Al enviarla se asigna el consecutivo COT-AAAA-NNNN y cada equipo queda PENDIENTE_APROBACION.',
+    desc: 'Permite crear la cotización de un edificio, elegir equipos, tipo de servicio, norma y valor de cada uno, y enviarla al cliente. Al crearla en borrador se asigna el consecutivo COT-AAAA-NNNN y cada equipo queda PENDIENTE_APROBACION; al enviarla el cliente la ve en el portal.',
     actores: 'Asesor (principal); cliente (recibe la notificación).',
     pre: ['El edificio tiene equipos.', 'Hay una edición vigente de la norma.', 'Para enviarla, el cliente tiene usuario en el portal.'],
     normal: [
       ['Desde el edificio pulsa Nueva cotización.', 'Muestra los equipos del edificio y propone la norma vigente.'],
       ['Marca los equipos, el tipo de servicio y el valor de cada uno.', 'Calcula subtotal, IVA y total.'],
-      ['Guarda la cotización.', 'La crea en BORRADOR.'],
-      ['Pulsa Enviar al cliente.', 'Asigna el número, deja cada equipo PENDIENTE_APROBACION, registra el historial y notifica al cliente.'],
+      ['Guarda la cotización.', 'La crea en BORRADOR con el número COT-AAAA-NNNN y deja cada equipo PENDIENTE_APROBACION.'],
+      ['Pulsa Enviar al cliente.', 'La marca ENVIADA_CLIENTE, registra el historial y notifica al cliente.'],
     ],
     alt: [
       ['3.1', 'Edita la cotización en borrador.', 'Permite cambiar equipos y valores, pero no el edificio.'],
@@ -159,7 +159,7 @@ module.exports = {
     actores: 'Cliente (principal); asesor (recibe la notificación).',
     pre: ['La cotización está ENVIADA_CLIENTE.', 'El usuario pertenece al cliente de la cotización.'],
     normal: [
-      ['Abre Mis cotizaciones y elige una.', 'Muestra equipos, servicio, norma y valores.'],
+      ['Abre Cotizaciones y elige una.', 'Muestra equipos, servicio, norma y valores.'],
       ['Pulsa Aprobar.', 'Pasa cada equipo a APROBADO_CLIENTE, registra la respuesta y notifica al asesor.'],
     ],
     alt: [['2.1', 'Pulsa Rechazar y escribe el motivo.', 'Pasa los equipos a RECHAZADO y notifica al asesor.']],
@@ -174,7 +174,7 @@ module.exports = {
     actores: 'Asesor (principal); programación (recibe la notificación).',
     pre: ['El cliente aprobó la cotización.'],
     normal: [
-      ['Abre la cotización aprobada y pulsa Enviar a programación.', 'Pasa cada equipo a POR_PROGRAMAR, registra el historial y notifica a Programación.'],
+      ['Abre la cotización aprobada y pulsa Aceptar y enviar a programación.', 'Pasa cada equipo a POR_PROGRAMAR, registra el historial y notifica a Programación.'],
     ],
     alt: [],
     exc: [['E1', 'El cliente aún no aprueba.', 'Responde 409 «El cliente todavía no ha aprobado la cotización».']],
@@ -207,10 +207,10 @@ module.exports = {
     actores: 'Programación (principal).',
     pre: ['La visita está programada y no se ha cerrado.'],
     normal: [
-      ['Abre la visita en el calendario y pulsa Reprogramar.', 'Muestra los datos actuales.'],
+      ['En el calendario abre el menú de la visita y elige Reprogramar.', 'Muestra los datos actuales.'],
       ['Cambia fecha, hora o inspector y escribe el motivo.', 'Valida el horario y guarda la programación como REPROGRAMADA.'],
     ],
-    alt: [['1.1', 'Pulsa Cancelar visita con el motivo.', 'Cancela la programación y devuelve cada equipo al estado anterior a programar.']],
+    alt: [['1.1', 'En el menú de la visita elige Cancelar y escribe el motivo.', 'Cancela la programación y devuelve cada equipo al estado anterior a programar.']],
     exc: [['E1', 'La visita ya está cerrada.', 'Responde 404 «Programación no encontrada o ya cerrada».']],
     post: ['El cambio queda en historial_estado con su motivo.'],
     frec: 'Media.',
@@ -261,7 +261,7 @@ module.exports = {
     actores: 'Inspector (principal).',
     pre: ['La inspección está en curso.'],
     normal: [
-      ['En la pestaña Fotos o desde un ítem pulsa Tomar foto.', 'Abre la cámara o la galería.'],
+      ['En la pestaña Fotos o desde un ítem pulsa Tomar foto en el celular, o Agregar fotos en el navegador.', 'Abre la cámara o el selector de archivos.'],
       ['Toma la foto y escribe una descripción.', 'Guarda la foto en el teléfono con un uuid y la pone en la cola de envío.'],
       ['', 'Al sincronizar, el servidor la reduce con Pillow, crea la miniatura y la guarda en storage/.'],
     ],
@@ -283,7 +283,7 @@ module.exports = {
       ['Abre la pestaña Firmas.', 'Muestra los tres firmantes requeridos.'],
       ['Cada persona escribe nombre, documento y cargo y firma en pantalla.', 'Guarda la firma como imagen con un uuid y la pone en la cola.'],
     ],
-    alt: [['2.1', 'El inspector ya registró su firma en el perfil.', 'La propone para no firmar cada vez.']],
+    alt: [],
     exc: [['E1', 'Firma una visita que no existe o ya cerrada.', 'Responde 400 o 409.']],
     post: ['Las firmas quedan en inspeccion_firma y salen en el PDF.'],
     frec: 'Alta.',
@@ -335,7 +335,7 @@ module.exports = {
     pre: ['El informe está PENDIENTE_REVISION.', 'El director tiene firma registrada o firma en el momento.'],
     normal: [
       ['Abre Informes por revisar y elige uno.', 'Muestra los datos, hallazgos y fotos.'],
-      ['Pulsa Vista previa.', 'Genera el PDF marcado BORRADOR.'],
+      ['Pulsa Ver borrador PDF.', 'Genera el PDF marcado BORRADOR.'],
       ['Pulsa Aprobar, firmar y generar PDF.', 'Calcula el concepto: con no conformidades queda NO CONFORME y no se puede cambiar.'],
       ['', 'Firma, congela los totales, genera el PDF definitivo y su huella SHA-256.'],
       ['', 'Cambia el estado del equipo y notifica al cliente y a Certificados.'],
@@ -354,7 +354,7 @@ module.exports = {
   },
   'CU-19': {
     hu: 'Como director técnico quiero devolver un informe con observaciones para que el inspector lo corrija.',
-    desc: 'Devuelve el informe al inspector con observaciones; la inspección vuelve a EN_INSPECCION para corregir.',
+    desc: 'Devuelve el informe al inspector con observaciones: el informe queda DEVUELTO, la inspección DEVUELTA y el equipo vuelve a EN_INSPECCION para corregir.',
     actores: 'Director técnico (principal); inspector (recibe la notificación).',
     pre: ['El informe está PENDIENTE_REVISION.'],
     normal: [
@@ -371,10 +371,10 @@ module.exports = {
     hu: 'Como cliente quiero avisar que corregí los hallazgos y pedir la segunda visita dentro del plazo.',
     desc: 'Con el equipo NO_CONFORME, el cliente o su asesor solicitan la segunda visita (cierre de hallazgos). El equipo pasa a SEGUNDA_VISITA_SOLICITADA y aparece en la bandeja de Programación.',
     actores: 'Cliente o asesor (principal); programación (recibe la notificación).',
-    pre: ['El equipo está NO_CONFORME.', 'La fecha límite de corrección no ha vencido.'],
+    pre: ['El equipo está NO_CONFORME.'],
     normal: [
-      ['En Seguimiento abre el equipo no conforme y pulsa Solicitar segunda visita.', 'Valida el estado y el plazo.'],
-      ['', 'Pasa el equipo a SEGUNDA_VISITA_SOLICITADA y notifica a Programación.'],
+      ['En Seguimiento abre el equipo no conforme y pulsa Solicitar segunda visita.', 'Valida el estado del equipo.'],
+      ['', 'Pasa el equipo a SEGUNDA_VISITA_SOLICITADA y notifica a Programación con la fecha límite de corrección, que es informativa: el sistema no bloquea la solicitud si ya venció.'],
     ],
     alt: [],
     exc: [
@@ -391,7 +391,7 @@ module.exports = {
     actores: 'Certificados (principal); cliente (lo recibe).',
     pre: ['El equipo está INFORME_APROBADO con concepto CONFORME.'],
     normal: [
-      ['Abre Por elaborar.', 'Lista los informes aprobados sin certificado.'],
+      ['Abre Certificados por elaborar.', 'Lista los informes aprobados sin certificado.'],
       ['Pulsa Elaborar certificado.', 'Asigna el número, el vencimiento y el código de verificación y genera el PDF con QR.'],
       ['En Certificados emitidos pulsa Enviar.', 'Marca el certificado ENVIADO_CLIENTE, pasa el equipo a CERTIFICADO_LISTO y notifica al cliente.'],
     ],
@@ -422,7 +422,7 @@ module.exports = {
   'CU-23': {
     hu: 'Como cliente o asesor quiero ver en qué estado está cada equipo y su historial para no tener que llamar a preguntar.',
     desc: 'Muestra una fila por equipo cotizado con su estado, programación y documentos, con filtros y el historial de cambios de estado. El cliente solo ve lo de su empresa.',
-    actores: 'Cliente, asesor, programación y director técnico.',
+    actores: 'Cliente, asesor, programación, inspector, director técnico y certificados.',
     pre: ['El usuario inició sesión.'],
     normal: [
       ['Abre Seguimiento.', 'Consulta la vista v_seguimiento_equipo filtrada por su rol.'],
