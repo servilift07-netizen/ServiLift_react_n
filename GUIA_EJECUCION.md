@@ -1,6 +1,6 @@
 # ServiLift v2 – Cómo ejecutar el proyecto (paso a paso)
 
-Carpeta del proyecto: `C:\Users\PC\Documents\Sena\LiftSafe\servi lift react`
+Carpeta del proyecto: `C:\src\ServiLift_react_n`
 
 Requisitos: Git, **Docker Desktop** (base de datos), **uv** (backend; el instalador lo agrega), Node.js 22+ y,
 para el celular, la app **Expo Go** (Play Store / App Store) o Android Studio. Las pruebas E2E usan además pnpm
