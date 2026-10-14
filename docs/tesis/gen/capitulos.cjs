@@ -49,7 +49,7 @@ function resumen() {
     H1('Resumen'),
     P('El presente documento describe ServiLift, un sistema de información para gestionar de principio a fin el servicio de inspección técnica de ascensores en organismos de certificación de transporte vertical que trabajan con la NTC 5926-1:2012, desde la cotización hasta la entrega del certificado con código QR, conforme a la NTC 5926-1:2012.'),
     P('La solución está formada por una aplicación multiplataforma en React Native con Expo, que corre en el celular del inspector y en el navegador del personal de oficina y del cliente; una API REST en FastAPI (Python 3.13) que concentra las reglas del negocio y los permisos de siete roles; y una base de datos MariaDB de 31 tablas y 2 vistas. El inspector trabaja sin señal: cada cambio se guarda primero en el teléfono y se sincroniza solo cuando vuelve la conexión, sin duplicar fotos ni firmas.'),
-    P('El documento recoge el análisis del negocio, el levantamiento de requisitos a partir de entrevistas, los 27 casos de uso organizados por rol con su especificación, la arquitectura, el modelo de datos con su diccionario completo generado desde el esquema real, la API, la instalación con Docker y uv, y la estrategia de pruebas automatizadas (Vitest, pytest, Playwright, mutación manual e integración continua en GitHub Actions).'),
+    P('El documento recoge el análisis del negocio, el levantamiento de requisitos a partir del análisis del proceso y la norma, los 27 casos de uso organizados por rol con su especificación, la arquitectura, el modelo de datos con su diccionario completo generado desde el esquema real, la API, la instalación con Docker y uv, y la estrategia de pruebas automatizadas (Vitest, pytest, Playwright, mutación manual e integración continua en GitHub Actions).'),
     new Paragraph({ spacing: { line: 480 }, indent: { firstLine: 720 }, children: [new TextRun({ text: 'Palabras clave: ', italics: true }), new TextRun('inspección de ascensores, NTC 5926-1, trabajo sin conexión, React Native, FastAPI, MariaDB, casos de uso.')] }),
     H1('Introducción'),
     P('La inspección técnica de ascensores y equipos de transporte vertical es un proceso regulado que exige rigurosidad, trazabilidad y cumplimiento normativo para garantizar la seguridad de los usuarios. En los organismos de inspección este proceso se suele llevar con planillas impresas, archivos de Excel independientes y fotografías sueltas tomadas con el celular, lo que dificulta el control de la información, alarga la entrega del informe y limita la calidad y la estandarización del resultado.'),
@@ -113,7 +113,7 @@ function negocio() {
     P('Desarrollar un sistema de información web y móvil, con funcionamiento sin conexión, que digitalice el servicio de inspección técnica de ascensores desde la cotización hasta el certificado, con trazabilidad completa y cumplimiento de la NTC 5926-1:2012.'),
     H2('3.2. Objetivos específicos'),
     ...listaNum([
-      'Analizar el proceso actual de inspección y levantar sus requisitos mediante entrevistas a los actores clave.',
+      'Analizar el proceso actual de inspección y levantar sus requisitos a partir del proceso y de la NTC 5926-1.',
       'Especificar los requisitos funcionales y no funcionales y trazarlos a la implementación.',
       'Modelar los casos de uso por rol, el flujo del negocio y la máquina de estados del servicio.',
       'Diseñar e implementar la arquitectura cliente-servidor y el modelo de datos relacional.',
@@ -177,22 +177,12 @@ function requisitos() {
   const out = [
     H1('5. Levantamiento de requisitos'),
     H2('5.1. Metodología'),
-    P('Los requisitos se levantaron con tres entrevistas semiestructuradas a actores clave: un técnico o inspector de campo, el coordinador de operaciones y el gerente de TI. De cada respuesta se extrajo una funcionalidad o una restricción.'),
-    ...tablaAPA('Hallazgos de las entrevistas', ['Entrevistado', 'Cita representativa', 'Requisito derivado'], [
-      ['Técnico de campo', '«muchas veces estamos en sótanos sin señal, pero igual debemos registrar la inspección»', 'Registro y consulta offline (F-001)'],
-      ['Técnico de campo', '«sería mejor que la aplicación ya tenga plantillas con los campos específicos del equipo»', 'Plantillas adaptativas (F-002)'],
-      ['Técnico de campo', '«cuando tomo una foto debería quedar vinculada automáticamente al punto que estoy inspeccionando»', 'Vinculación de evidencias (F-003)'],
-      ['Técnico de campo', '«el cliente debería poder firmar en el mismo dispositivo»', 'Firma digital en sitio (F-005)'],
-      ['Coordinador de operaciones', '«necesito ver qué inspecciones están pendientes, en curso y finalizadas»', 'Dashboard (F-006)'],
-      ['Coordinador de operaciones', '«que los informes ya no pasen por papel, sino que yo los pueda aprobar digitalmente»', 'Flujos digitales (F-007)'],
-      ['Gerente de TI', '«los técnicos solo deben ver lo que les corresponde»', 'Roles y accesos (F-010)'],
-      ['Gerente de TI', '«los técnicos usan Android y algunos iOS, así que debe funcionar en ambos»', 'Compatibilidad (NF-008)'],
-    ], [2000, 4560, 2800], 'Fuente: entrevistas del levantamiento de requisitos.'),
+    P('Los requisitos se obtuvieron del análisis del proceso de inspección descrito en el capítulo 2, de la lista de chequeo y las exigencias de la NTC 5926-1:2012, de los requisitos de trazabilidad de la ISO/IEC 17020:2012 y de las condiciones reales del trabajo en campo, como los cuartos de máquinas y fosos sin señal. Cada necesidad se escribió como un requisito funcional, no funcional o una restricción, y se trazó al caso de uso que la atiende.'),
     H2('5.2. Trazabilidad de los requisitos consolidados'),
-    P('Las tablas siguientes muestran cada requisito consolidado de las entrevistas, el caso de uso que lo atiende y su estado en la versión implementada. Los requisitos parciales se explican para que el lector sepa exactamente qué falta.'),
-    ...tablaAPA('Requisitos funcionales de las entrevistas y su implementación', ['Código', 'Requisito', 'Estado', 'Casos de uso', 'Cómo se atiende'],
+    P('Las tablas siguientes muestran cada requisito consolidado, el caso de uso que lo atiende y su estado en la versión implementada. Los requisitos parciales se explican para que el lector sepa exactamente qué falta.'),
+    ...tablaAPA('Requisitos funcionales y su implementación', ['Código', 'Requisito', 'Estado', 'Casos de uso', 'Cómo se atiende'],
       TRAZA_F.map(([c, n, e, cu, d]) => [c, n, ESTADO[e], cu, d]), [900, 1900, 1500, 1200, 3860]),
-    ...tablaAPA('Requisitos no funcionales de las entrevistas y su implementación', ['Código', 'Requisito', 'Estado', 'Cómo se atiende'],
+    ...tablaAPA('Requisitos no funcionales y su implementación', ['Código', 'Requisito', 'Estado', 'Cómo se atiende'],
       TRAZA_NF.map(([c, n, e, d]) => [c, n, ESTADO[e], d]), [900, 2200, 1500, 4760]),
     ...tablaAPA('Restricciones', ['Código', 'Restricción', 'Estado', 'Observación'], [
       ['R-001', 'Funcionamiento en zonas sin conectividad', 'Implementado', 'Ver CU-16 y la sección 9.6.'],
@@ -471,7 +461,7 @@ function instalacion() {
 function cierre() {
   return [
     H1('15. Conclusiones'),
-    P('ServiLift cumple el objetivo general: el servicio de inspección de ascensores ya es un flujo digital de punta a punta, con trazabilidad en cada cambio de estado y con funcionamiento sin conexión para el inspector, que era la necesidad más repetida en las entrevistas.'),
+    P('ServiLift cumple el objetivo general: el servicio de inspección de ascensores ya es un flujo digital de punta a punta, con trazabilidad en cada cambio de estado y con funcionamiento sin conexión para el inspector, que era la necesidad principal del trabajo en campo.'),
     P('El paso del diseño inicial a la implementación dejó un modelo de datos más completo (31 tablas frente a las 12 entidades del primer modelo), porque el trabajo real exigió separar el servicio por equipo, guardar la norma como dato, registrar el historial de estados y manejar dos visitas por servicio. Presentar los casos de uso y los datos por rol ayuda a validar con cada área que el sistema hace lo que esa área necesita y nada más.'),
     P('Quedan como trabajo futuro la recuperación de contraseña por correo, el respaldo automático programado, los reportes exportables y la integración con sistemas contables, señalados en la trazabilidad de requisitos como parciales o pendientes.'),
     H1('Referencias'),
