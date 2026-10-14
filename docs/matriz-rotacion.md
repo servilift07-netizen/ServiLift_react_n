@@ -6,20 +6,17 @@ Capas: **Front** (app Expo) · **API** (FastAPI) · **BD** (integración) · **E
 
 Reglas:
 
-- Cada semana cambias de capa. No repites capa hasta haber pasado por las cuatro.
-- En la columna escribe la capa y, al cerrar la semana, el enlace a tu PR de tests.
-- Quien revisa tu PR debe haber trabajado en otra capa esa semana.
+- Equipo de una persona: @servilift07-netizen hace las pruebas de todas las capas; los PR se autorrevisan con el checklist de la plantilla
+- Los commits anteriores de @esteban64-64 son de la misma persona.
 
-> Completen la columna de integrantes con su usuario de GitHub. En S1 todo el grupo trabaja en E2E.
+
 
 | Integrante (usuario GitHub) | S1 | S2 | S3 | S4 | S5 | S6 | S7 | S8 | S9 |
 |---|---|---|---|---|---|---|---|---|---|
-| @esteban64-64 | E2E | E2E (CI) + API | | | | | | | |
-| @integrante-2 | E2E | Front | | | | | | | |
-| @integrante-3 | E2E | API | | | | | | | |
-| @integrante-4 | E2E | BD | | | | | | | |
+| @servilift07-netizen | E2E | | | | | | | | |
 
-Flujos E2E de la semana 1 (un flujo distinto por integrante; repártanlos):
+
+Flujos E2E de la semana 1 (todos a cargo de @servilift07-netizen):
 
 | Flujo | Archivo |
 |---|---|
@@ -41,10 +38,6 @@ Anota la cobertura real al cerrar cada semana. El umbral de la semana siguiente 
 integración `tests/test_flujo.py`) y Python ejecuta las líneas de definición (`def`, `class`, decoradores).
 Es el ejemplo perfecto de que la cobertura dice qué se **ejecutó**, no qué se **verificó**.
 
-## Regla de rama
-
-El repositorio es público: `main` se protege con un ruleset (*Require a pull request* + *Require status checks*
-con los jobs `frontend` y `backend`). Mientras se activa, la regla del grupo es: **nadie fusiona un PR en rojo**.
 
 ## Registro de vocero aleatorio
 
@@ -53,4 +46,4 @@ El vocero escribe su respuesta **antes** de que el instructor llegue a la mesa; 
 | Semana | Vocero | Capa preguntada | Respuesta escrita | Resultado (Alto / Medio / Bajo) |
 |---|---|---|---|---|
 | S1 | | | | |
-| S2 | | | | |
+
