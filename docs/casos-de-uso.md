@@ -1,5 +1,8 @@
 # Casos de uso
 
+> Resumen de 17 casos de uso. El documento completo [`tesis/ServiLift_Documentacion.docx`](tesis/) los
+> desglosa en 27 (CU-01 a CU-27), con un diagrama por rol y la especificación de cada uno; la numeración cambia.
+
 ## 1. Actores
 
 | Actor | Rol en el sistema | Dónde trabaja |
