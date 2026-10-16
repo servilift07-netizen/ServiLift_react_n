@@ -33,7 +33,10 @@ function Ejecutar([scriptblock]$bloque, $descripcion) {
     if ($LASTEXITCODE -ne 0) { throw "Falló: $descripcion (código $LASTEXITCODE)" }
 }
 function EnDocker($sql, $base = "") {
-    $salida = docker exec $contenedor mariadb -uroot "-p$ClaveRoot" -N -e $sql $base
+    # Sin base se omite el argumento: PowerShell 7.3+ pasaría "" y el cliente lo tomaría como nombre de base
+    $argumentos = @("exec", $contenedor, "mariadb", "-uroot", "-p$ClaveRoot", "-N", "-e", $sql)
+    if ($base) { $argumentos += $base }
+    $salida = docker @argumentos
     if ($LASTEXITCODE -ne 0) { throw "Falló en Docker: $sql" }
     return $salida
 }
