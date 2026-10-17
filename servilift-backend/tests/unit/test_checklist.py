@@ -124,3 +124,47 @@ def test_pendientes_segunda_visita_lists_unmarked_findings_and_missing_signature
     assert errores[0] == "Hallazgos sin marcar como corregido / no corregido: 3, 7"
     assert "Falta la firma del inspector (segunda visita)" in errores
     assert len(errores) == 4
+
+
+# ---------------------------------------------------------------- precarga de NO_APLICA
+@pytest.fixture
+def aplica(monkeypatch):
+    """items_aplicables sin base de datos: devuelve lo que la prueba fije."""
+    from app.services import checklist
+    reglas = {}
+    monkeypatch.setattr(checklist, "items_aplicables", lambda db, i: reglas)
+    return reglas
+
+
+DB = N(flush=lambda: None)
+
+
+def test_precargar_no_aplica_marks_unrated_items_that_do_not_apply(aplica):
+    # Arrange: 1 sin resultado, 2 quedó NO_VERIFICADO (el inspector quitó la calificación), 3 sí aplica
+    from app.models import InspeccionResultado
+    from app.services.checklist import precargar_no_aplica
+    aplica.update({1: False, 2: False, 3: True})
+    sin_calificar = InspeccionResultado(id_item=2, resultado="NO_VERIFICADO", no_aplica_automatico=False)
+    insp = N(id_inspeccion=7, resultados=[sin_calificar])
+
+    # Act
+    cambio = precargar_no_aplica(DB, insp)
+
+    # Assert
+    assert cambio
+    por_item = {r.id_item: r for r in insp.resultados}
+    assert set(por_item) == {1, 2}
+    assert all(r.resultado == "NO_APLICA" and r.no_aplica_automatico for r in por_item.values())
+
+
+def test_precargar_no_aplica_keeps_manual_ratings_and_frees_items_that_apply_again(aplica):
+    from app.models import InspeccionResultado
+    from app.services.checklist import precargar_no_aplica
+    aplica.update({1: False, 2: True})
+    manual = InspeccionResultado(id_item=1, resultado="CUMPLE", no_aplica_automatico=False)
+    automatico = InspeccionResultado(id_item=2, resultado="NO_APLICA", no_aplica_automatico=True)
+    insp = N(id_inspeccion=7, resultados=[manual, automatico])
+
+    assert precargar_no_aplica(DB, insp)
+    assert insp.resultados == [manual] and manual.resultado == "CUMPLE"
+    assert not precargar_no_aplica(DB, insp)  # sin cambios la segunda vez

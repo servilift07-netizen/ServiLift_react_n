@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 
 import { cola, EventoEnviado, Operacion } from '@/offline/cola';
 
-export { aplicarPendientes, resumenLocal } from '@/logica/checklistLocal';
+export { aplicarPendientes, conNoAplica, resumenLocal } from '@/logica/checklistLocal';
 export type { Checklist, ItemChecklist } from '@/logica/checklistLocal';
 
 export function fotosPendientes(ops: Operacion[], idItem?: number) {

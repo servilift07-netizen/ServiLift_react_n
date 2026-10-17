@@ -22,18 +22,26 @@ def items_aplicables(db: Session, id_inspeccion: int) -> dict[int, bool]:
     return {f.id_item: bool(f.aplica) for f in filas}
 
 
-def precargar_no_aplica(db: Session, insp: Inspeccion):
+def precargar_no_aplica(db: Session, insp: Inspeccion) -> bool:
     """Marca NO_APLICA (automático) lo que no corresponde a las variantes y libera lo que vuelve a aplicar.
-    Nunca sobreescribe lo que el inspector ya calificó a mano."""
+    Un ítem sin calificar (sin resultado o NO_VERIFICADO) que no aplica también queda en NO_APLICA.
+    Nunca sobreescribe lo que el inspector ya calificó a mano. Devuelve True si cambió algo."""
     db.flush()
     aplica = items_aplicables(db, insp.id_inspeccion)
     actuales = {r.id_item: r for r in insp.resultados}
+    cambio = False
     for id_item, ok in aplica.items():
         r = actuales.get(id_item)
         if not ok and r is None:
             insp.resultados.append(InspeccionResultado(id_item=id_item, resultado="NO_APLICA", no_aplica_automatico=True))
+            cambio = True
+        elif not ok and r.resultado == "NO_VERIFICADO":
+            r.resultado, r.calificacion_defecto, r.no_aplica_automatico = "NO_APLICA", None, True
+            cambio = True
         elif ok and r is not None and r.no_aplica_automatico:
             insp.resultados.remove(r)
+            cambio = True
+    return cambio
 
 
 def tipos_de_variante(db: Session, parte_norma: int) -> list[VarianteTipo]:

@@ -15,7 +15,7 @@ import { cola } from '@/offline/cola';
 import { useSincronizacion } from '@/offline/SincronizacionContext';
 import { aclarar, Colores } from '@/tema';
 import { agregarFotos } from './fotos';
-import { aplicarPendientes, Checklist, fotosPendientes, ItemChecklist, resumenLocal, useEnvios } from './pendientes';
+import { aplicarPendientes, Checklist, conNoAplica, fotosPendientes, ItemChecklist, resumenLocal, useEnvios } from './pendientes';
 import { clavesCache } from './precarga';
 
 const COLOR_CALIF: Record<string, string> = { L: '#2F6FB0', G: '#C97B1A', MG: '#C0392B' };
@@ -51,7 +51,7 @@ export default function ChecklistTab({ idInspeccion, editable, segundaVisita, fi
   });
 
   const ops = useMemo(() => sync.operaciones.filter((o) => o.idInspeccion === idInspeccion), [sync.operaciones, idInspeccion]);
-  const datos = useMemo(() => (c.datos ? aplicarPendientes(c.datos, ops) : undefined), [c.datos, ops]);
+  const datos = useMemo(() => (c.datos ? conNoAplica(aplicarPendientes(c.datos, ops)) : undefined), [c.datos, ops]);
   const fotosPorItem = useMemo(() => {
     const m = new Map<number, { id: string; uri: string }[]>();
     for (const f of fotosPendientes(ops)) {
@@ -160,9 +160,11 @@ const Item = memo(function Item({ it, idInspeccion, editable, segundaVisita, fot
       unidad_medida: v.unidad_medida, observacion: v.observacion, modificado_en: ahora });
   };
 
-  // Ítem que no aplica a este equipo (por sus variantes o datos): pedir confirmación antes de calificarlo
+  // Ítem que no aplica a este equipo (por sus variantes o datos): está en N/A; pedir confirmación antes de
+  // calificarlo y, si se quita la calificación, vuelve a N/A
   const calificar = async (v: string) => {
-    const nuevo = v === resultado ? 'NO_VERIFICADO' : v;
+    const nuevo = v === resultado ? (it.aplica ? 'NO_VERIFICADO' : 'NO_APLICA') : v;
+    if (nuevo === resultado) return;
     const aCalificado = nuevo === 'CUMPLE' || nuevo === 'NO_CUMPLE';
     const yaCalificado = resultado === 'CUMPLE' || resultado === 'NO_CUMPLE';
     if (!it.aplica && aCalificado && !yaCalificado && !(await d.confirmar('Ítem que no aplica',
