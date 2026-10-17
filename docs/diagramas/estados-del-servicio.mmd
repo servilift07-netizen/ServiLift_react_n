@@ -1,0 +1,23 @@
+stateDiagram-v2
+    [*] --> PENDIENTE_APROBACION: Asesor envía la cotización
+    PENDIENTE_APROBACION --> APROBADO_CLIENTE: Cliente aprueba
+    PENDIENTE_APROBACION --> RECHAZADO: Cliente rechaza
+    APROBADO_CLIENTE --> POR_PROGRAMAR: Asesor envía a programación
+    POR_PROGRAMAR --> PROGRAMADO: Programación asigna inspector, fecha y hora
+    PROGRAMADO --> POR_PROGRAMAR: Visita cancelada
+    PROGRAMADO --> EN_INSPECCION: Inspector inicia
+    EN_INSPECCION --> EN_REVISION: Inspector finaliza
+    EN_REVISION --> EN_INSPECCION: Director devuelve
+    EN_REVISION --> INFORME_APROBADO: Conforme (1a o 2a visita)
+    EN_REVISION --> NO_CONFORME: 1a visita no conforme
+    EN_REVISION --> CERRADO_NO_CONFORME: 2a visita con hallazgos sin corregir
+    NO_CONFORME --> SEGUNDA_VISITA_SOLICITADA: Cliente o asesor la solicita
+    SEGUNDA_VISITA_SOLICITADA --> PROGRAMADO: Programación agenda la 2a visita
+    INFORME_APROBADO --> CERTIFICADO_LISTO: Certificados emite y envía
+    CERTIFICADO_LISTO --> [*]
+    CERRADO_NO_CONFORME --> [*]: Requiere cotización nueva
+    RECHAZADO --> [*]
+    note right of PENDIENTE_APROBACION
+        Hasta PROGRAMADO (inclusive) el servicio
+        también puede pasar a ANULADO
+    end note

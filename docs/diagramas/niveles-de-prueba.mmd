@@ -1,0 +1,8 @@
+flowchart BT
+    U1["Unitarias de la app<br/>Vitest · servilift-app/tests<br/>8 archivos, 110 pruebas"]
+    U2["Unitarias del backend<br/>pytest · servilift-backend/tests/unit<br/>6 archivos, 103 pruebas"]
+    I["Integración<br/>pytest -m integracion · tests/test_flujo.py<br/>flujo completo por la API contra MariaDB"]
+    E["Extremo a extremo<br/>Playwright · e2e/tests<br/>5 flujos en la app web"]
+    U1 --> I
+    U2 --> I
+    I --> E

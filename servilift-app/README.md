@@ -36,3 +36,12 @@ src/
 - `pantallas/inspeccion/pendientes.ts`: superpone lo pendiente sobre lo que dice el servidor, así la
   pantalla siempre muestra lo último que hizo el inspector.
 - La agenda deja cada inspección precargada en el teléfono para abrirla después sin conexión.
+
+## Pruebas
+
+```bash
+npm test                    # unitarias (Vitest) + cobertura; falla si baja del umbral de vitest.config.mts
+npm run test:watch          # modo observación
+```
+Las pruebas están en `tests/` y cubren la lógica pura de `src/logica/`. Detalle: [../docs/pruebas.md](../docs/pruebas.md).
+Arquitectura de la app y del trabajo sin señal: [../docs/arquitectura.md](../docs/arquitectura.md).

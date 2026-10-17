@@ -1,0 +1,14 @@
+flowchart LR
+    subgraph PC["PC de desarrollo / servidor"]
+        subgraph Docker
+            DB[("servilift-db<br/>MariaDB 10.11<br/>puerto 3307")]
+            VOL[["volumen servilift-datos"]]
+            DB --- VOL
+        end
+        API["uvicorn app.main:app<br/>puerto 8000 (uv run)"]
+        EXPO["Expo dev server<br/>puerto 8081"]
+        API --> DB
+    end
+    NAV["Navegador"] --> EXPO
+    NAV --> API
+    TEL["Celular con Expo Go<br/>(misma Wi‑Fi) o APK de EAS Build"] --> API

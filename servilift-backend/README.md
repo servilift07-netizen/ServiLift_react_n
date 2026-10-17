@@ -54,16 +54,20 @@ tests/test_flujo.py prueba de punta a punta
 ## Pruebas
 
 ```bash
-python -m tests.test_flujo
+uv run pytest                                                   # unitarias (tests/unit) + cobertura, sin base de datos
+DB_NAME=servilift_v2_prueba uv run pytest -m integracion --no-cov   # integración (PowerShell: $env:DB_NAME="servilift_v2_prueba")
 ```
-Recorre: normas, búsqueda, cotización, programación, inspección de 169 ítems, enlaces firmados,
-idempotencia, "el cambio más reciente gana", devolución y aprobación, 2ª visita conforme con
-certificado, y 2ª visita no conforme con cotización nueva enlazada. Deja PDF de ejemplo en `tests/salida/`.
+La de integración (`tests/test_flujo.py`, también `uv run python -m tests.test_flujo`) recorre: normas, búsqueda,
+cotización, programación, inspección de 169 ítems, enlaces firmados, idempotencia, "el cambio más reciente gana",
+devolución y aprobación, 2ª visita conforme con certificado, y 2ª visita no conforme con cotización nueva
+enlazada. Deja PDF de ejemplo en `tests/salida/`. Detalle de todos los niveles: [../docs/pruebas.md](../docs/pruebas.md).
 
 ## Migraciones
 
 ```bash
-alembic current
-alembic revision -m "descripción"
-alembic upgrade head
+uv run alembic current
+uv run alembic revision -m "descripción"
+uv run alembic upgrade head
 ```
+
+Arquitectura, modelo de datos y casos de uso: [../docs/](../docs/README.md).
