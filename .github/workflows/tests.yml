@@ -2,6 +2,7 @@
 # (version-2.1) y en cada pull request.
 # El umbral de cobertura vive en la configuración de cada parte (vitest.config.mts y pyproject.toml):
 # si la cobertura baja, el mismo comando que se usa en local falla y el job queda en rojo.
+# Versiones fijas y LTS: Ubuntu 22.04 en vez de ubuntu-latest (que cambia solo de versión) y Node 22 LTS.
 name: tests
 
 on:
@@ -11,7 +12,7 @@ on:
 
 jobs:
   frontend:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     defaults:
       run:
         working-directory: servilift-app
@@ -33,7 +34,7 @@ jobs:
           retention-days: 7
 
   backend:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     defaults:
       run:
         working-directory: servilift-backend
@@ -49,7 +50,7 @@ jobs:
       - run: uv run pytest
 
   evidencia-individual:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v7.0.1
         with:
