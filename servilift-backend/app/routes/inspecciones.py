@@ -318,8 +318,7 @@ def iniciar(datos: IniciarIn, db: Session = Depends(get_db), usuario: Usuario = 
     for ins in db.query(InstrumentoMedicion).filter(InstrumentoMedicion.id_inspector == usuario.id_usuario,
                                                     InstrumentoMedicion.estado == "ACTIVO"):
         insp.instrumentos.append(InspeccionInstrumento(id_instrumento=ins.id_instrumento))
-    if eq.variantes:
-        precargar_no_aplica(db, insp)
+    precargar_no_aplica(db, insp)  # por variantes del equipo y por su foso
     cambiar_estado(db, ce, "EN_INSPECCION", usuario)
     p.estado = "EN_CURSO"
     db.commit()
@@ -427,6 +426,9 @@ def variantes(id_inspeccion: int, datos: list[VarianteIn], db: Session = Depends
 @router.get("/{id_inspeccion}/checklist")
 def checklist(id_inspeccion: int, db: Session = Depends(get_db), usuario: Usuario = Depends(get_current_user)):
     insp = _obtener(db, id_inspeccion, usuario)
+    # Inspecciones abiertas antes de las reglas, o con ítems sin calificar que no aplican: quedan en N/A
+    if insp.estado in ("EN_CURSO", "DEVUELTA") and precargar_no_aplica(db, insp):
+        db.commit()
     aplica = items_aplicables(db, insp.id_inspeccion)
     res = {r.id_item: r for r in insp.resultados}
     fotos_por_res = {}

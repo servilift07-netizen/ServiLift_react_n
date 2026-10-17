@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { aplicarPendientes, Checklist, ItemChecklist, resumenLocal } from '@/logica/checklistLocal';
+import { aplicarPendientes, Checklist, conNoAplica, ItemChecklist, resumenLocal } from '@/logica/checklistLocal';
 import type { Operacion } from '@/offline/cola';
 
 // Datos de prueba: armados a mano, sin servidor ni teléfono
@@ -90,5 +90,30 @@ describe('resumenLocal', () => {
     // Assert
     expect(r).toEqual({ total: 7, calificados: 5, leves: 1, graves: 1, muy_graves: 1, no_aplica: 1, no_cumple: 3,
       corregidos: 1, no_corregidos: 1 });
+  });
+});
+
+describe('conNoAplica', () => {
+  const noAplica = (id: number, resultado: ItemChecklist['resultado'] = null): ItemChecklist => ({ ...item(id, 'LEVE', resultado), aplica: false });
+
+  it('should show N/A already selected on items that do not apply and are not rated', () => {
+    // Arrange: sin resultado y con NO_VERIFICADO (el inspector quitó la calificación)
+    const c = checklist([noAplica(1), noAplica(2, { resultado: 'NO_VERIFICADO', observacion: 'nota' }), item(3, 'LEVE')]);
+
+    // Act
+    const items = conNoAplica(c).categorias[0].items;
+
+    // Assert
+    expect(items[0].resultado).toMatchObject({ resultado: 'NO_APLICA', no_aplica_automatico: true });
+    expect(items[1].resultado).toMatchObject({ resultado: 'NO_APLICA', observacion: 'nota' });
+    expect(items[2].resultado).toBeNull();  // el que aplica sigue pendiente
+    expect(resumenLocal(conNoAplica(c)).no_aplica).toBe(2);
+  });
+
+  it('should keep what the inspector rated on an item that does not apply', () => {
+    const c = checklist([noAplica(1, { resultado: 'CUMPLE' }), noAplica(2, { resultado: 'NO_CUMPLE' })]);
+
+    // Mismo objeto: no hay nada que precargar
+    expect(conNoAplica(c)).toBe(c);
   });
 });

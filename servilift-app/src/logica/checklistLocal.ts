@@ -68,6 +68,22 @@ export function aplicarPendientes(c: Checklist, ops: Operacion[], marcar = true)
   };
 }
 
+/** Un ítem que no aplica al equipo y sigue sin calificar se muestra en N/A (como lo precarga el servidor),
+ *  también con datos guardados en el teléfono antes de esa precarga. */
+export function conNoAplica(c: Checklist): Checklist {
+  const sinCalificar = (it: ItemChecklist) => !it.aplica && (!it.resultado || it.resultado.resultado === 'NO_VERIFICADO');
+  if (!c.categorias.some((cat) => cat.items.some(sinCalificar))) return c;
+  return {
+    ...c,
+    categorias: c.categorias.map((cat) => ({
+      ...cat,
+      items: cat.items.map((it) => (sinCalificar(it)
+        ? { ...it, resultado: { ...it.resultado, resultado: 'NO_APLICA', calificacion_defecto: null, no_aplica_automatico: true } }
+        : it)),
+    })),
+  };
+}
+
 export function resumenLocal(c: Checklist) {
   const r = { total: 0, calificados: 0, leves: 0, graves: 0, muy_graves: 0, no_aplica: 0, no_cumple: 0, corregidos: 0, no_corregidos: 0 };
   for (const cat of c.categorias) {
